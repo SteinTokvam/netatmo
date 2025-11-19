@@ -21,10 +21,11 @@ WHITE = 1
 BLACK = 0
 # Font file: path below if installed with
 # sudo apt install fonts-freefont-ttf
-font_file = '/usr/share/fonts/truetype/freefont/FreeSans.ttf'
+font_file = './free-sans.ttf'
 if not os.path.isfile(font_file):
     font_file = '../freefont/FreeSans.ttf'
     if not os.path.isfile(font_file):
+        print("No font file")
         exit()
 # File names
 data_filename = 'data.json'
@@ -78,7 +79,8 @@ def draw_image():
     #font_size_time = int((width - 10) / (20 * 0.65))    # YYYY-MM-DD HH:MM:SS
     #font_temp = ImageFont.truetype(font_file, font_size_temp)
     #font_time = ImageFont.truetype(font_file, font_size_time)
-    font_temp = ImageFont.truetype(font_file, 40)
+    font_text = ImageFont.truetype(font_file, 12)
+    font_temp = ImageFont.truetype(font_file, 25)
     font_time = ImageFont.truetype(font_file, 20)
 
     # read data
@@ -113,7 +115,7 @@ def draw_image():
     device = g_data["body"]["devices"][0]
     if "dashboard_data" in device:
         indoor_data = device["dashboard_data"]
-        indoor_temp_str = '{0:.2f}'.format(indoor_data["Temperature"]) + " " + unit_temp
+        indoor_temp_str = '{0:.1f}'.format(indoor_data["Temperature"]) + " " + unit_temp
         if "temp_trend" in indoor_data:
             indoor_temp_str += trend_symbol(indoor_data["temp_trend"])
         indoor_pressure_str = '{0:.1f}'.format(indoor_data["Pressure"]) + " " + unit_pressure
@@ -127,7 +129,7 @@ def draw_image():
             module_data = module["dashboard_data"]
             if module_type == "NAModule1":
                 # Outdoor Module
-                outdoor_temp_str = '{0:.2f}'.format(module_data["Temperature"]) + " " + unit_temp
+                outdoor_temp_str = '{0:.1f}'.format(module_data["Temperature"]) + " " + unit_temp
                 if "temp_trend" in module_data:
                     outdoor_temp_str += trend_symbol(module_data["temp_trend"])
             elif module_type == "NAModule2":
@@ -153,14 +155,22 @@ def draw_image():
     if width_rain > txtwidth:
         txtwidth = width_rain
 
-    x = int((width - txtwidth) / 2)
-    y = int((height - 3*txtheight - 10) / 2)
+    x = int((width - txtwidth) / 2)-15
+    text_x = int((width - (txtwidth+85)-35))
+    y = int(((height - 4*txtheight - 10) / 2)-5)
+
 
     draw.rectangle((2, 2, width - 2, height - 2), fill=WHITE, outline=BLACK)
     # temperatures and rain
+    draw.text((text_x, y - txtheight + 33), "Inne:", fill=BLACK, font=font_text)
+    draw.text((text_x, y - txtheight + 60), "Ute:", fill=BLACK, font=font_text)
+    draw.text((text_x, y - txtheight + 80), "Regn:", fill=BLACK, font=font_text)
+    draw.text((text_x, y - txtheight + 105), "Vind:", fill=BLACK, font=font_text)
+
     draw.text((x, y), indoor_temp_str, fill=BLACK, font=font_temp)
-    draw.text((x, y + txtheight + 5), outdoor_temp_str, fill=BLACK, font = font_temp)
+    draw.text((x, y + txtheight+5), outdoor_temp_str, fill=BLACK, font = font_temp)
     draw.text((x, y + 2*txtheight + 10), rain_str, fill=BLACK, font = font_temp)
+    draw.text((x, y + 3*txtheight + 15), wind_str, fill=BLACK, font = font_temp)
     # time
     draw.text((width - width_time - 5, 5), data_time_str, fill = BLACK, font = font_time)
 
@@ -204,7 +214,8 @@ def main():
 
     # *** no known screen: just save the bmp
     logging.debug("No known screen.")
-    g_image = Image.new('1', (264, 176), WHITE)
+    # g_image = Image.new('1', (264, 176), WHITE)
+    g_image = Image.new('1', (250, 122), WHITE)
     draw_image()
     g_image.save(image_filename)
 

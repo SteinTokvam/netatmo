@@ -237,7 +237,7 @@ def main():
         if os.path.isfile('./custom_display.py'):
             os.system('python3 ./custom_display.py')
         elif os.path.isfile('./display.py'):
-            os.system('python3 ./display.py')
+            os.system('python3 display.py')
         # sleep 10 minutes
         try:
             time.sleep(600)
