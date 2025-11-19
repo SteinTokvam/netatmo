@@ -98,11 +98,14 @@ def draw_image():
     unit_temp = ['°C', '°F'][user_admin["unit"]]
     unit_rain = ['mm/h', 'in/h'][user_admin["unit"]]
     unit_wind = ['kph', 'mph', 'm/s', 'beaufort', 'knot'][user_admin["windunit"]]
-    unit_pressure = ['mbar', 'inHg', 'mmHg'][user_admin["pressureunit"]]
+    unit_humidity = '%'
+    unit_co2 = 'ppm'
 
     # get and format values
     indoor_temp_str = 'N/A'
-    indoor_pressure_str = 'N/A'
+    indoor_humidity_str = 'N/A'
+    outdoor_humidity_str = 'N/A'
+    indoor_co2_str = 'N/A'
     outdoor_temp_str = 'N/A'
     rain_str = 'N/A'
     wind_str = 'N/A'
@@ -114,11 +117,12 @@ def draw_image():
     if "dashboard_data" in device:
         indoor_data = device["dashboard_data"]
         indoor_temp_str = '{0:.1f}'.format(indoor_data["Temperature"]) + " " + unit_temp
+        indoor_humidity_str = '{0:.1f}'.format(indoor_data["Humidity"]) + " " + unit_humidity
         if "temp_trend" in indoor_data:
             indoor_temp_str += trend_symbol(indoor_data["temp_trend"])
-        indoor_pressure_str = '{0:.1f}'.format(indoor_data["Pressure"]) + " " + unit_pressure
+        indoor_co2_str = '{0:.1f}'.format(indoor_data["CO2"]) + " " + unit_co2
         if "pressure_trend" in indoor_data:
-            indoor_pressure_str += trend_symbol(indoor_data["pressure_trend"])
+            indoor_co2_str += trend_symbol(indoor_data["pressure_trend"])
 
     # other modules: outdoor temperature, rain (lines 2 & 3), wind (unused), optional indoor (unused)
     for module in device["modules"]:
@@ -128,6 +132,7 @@ def draw_image():
             if module_type == "NAModule1":
                 # Outdoor Module
                 outdoor_temp_str = '{0:.1f}'.format(module_data["Temperature"]) + " " + unit_temp
+                outdoor_humidity_str = '{0:.1f}'.format(module_data["Humidity"]) + " " + unit_humidity
                 if "temp_trend" in module_data:
                     outdoor_temp_str += trend_symbol(module_data["temp_trend"])
             elif module_type == "NAModule2":
@@ -135,7 +140,7 @@ def draw_image():
                 wind_str = '{0:.1f}'.format(module_data["WindStrength"]) + " " + unit_wind
             elif module_type == "NAModule3":
                 # Rain Gauge
-                rain_str = '{0:.1f}'.format(module_data["Rain"]) + " " + unit_rain
+                rain_str = '{0:.1f}'.format(module_data["sum_rain_24"]) + " mm"
             elif module_type == "NAModule4":
                 # Optional indoor module
                 pass
@@ -167,11 +172,17 @@ def draw_image():
     draw.text((first_window_x, first_window_y), indoor_temp_str, fill=BLACK, font=font_temp)
     draw.text((first_window_x, first_window_y + txtheight+5), outdoor_temp_str, fill=BLACK, font = font_temp)
 
+    # indoor humidity and CO2
+    draw.text((first_window_x, second_window_y + (4*(txtheight))), indoor_humidity_str + " / " + indoor_co2_str, fill=BLACK, font = font_text)
+
     # rain and wind
     draw.text((second_window_x, second_window_y), rain_str, fill=BLACK, font = font_temp)
     if wind_str != 'N/A':
         draw.text((second_window_x, second_window_y + txtheight + 5), wind_str, fill=BLACK, font = font_temp)
     
+    # outdoor humidity
+    draw.text((second_window_x, second_window_y + (4*(txtheight))), outdoor_humidity_str, fill=BLACK, font = font_text)
+
     # time
     draw.text((width - width_time - 5, 5), data_time_str, fill = BLACK, font = font_time)
 
