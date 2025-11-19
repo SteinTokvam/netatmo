@@ -188,10 +188,10 @@ def draw_image():
 
     first_window_x = int(width/8)
     first_window_y = int(height/8)
-    second_window_x = int((width/2)+width/8)
+    second_window_x = int((width/2)+width/6)
     second_window_y = int(height/8)
     bottom_window_x = int(10)
-    bottom_window_y = int(height/2+50)
+    bottom_window_y = int(height/2+150)
 
     # Draws rectangle and lines
     draw.rectangle((2, 2, width - 2, height - 2), fill=WHITE, outline=BLACK)
@@ -239,21 +239,22 @@ def main():
     """Main function"""
     global g_image
 
-    try:
-        # *** PaPiRus ePaper / eInk Screen HAT for Raspberry Pi - 2.7" ***
-        from papirus import Papirus
-        papirus = Papirus(rotation = 0)
-        g_image = Image.new('1', papirus.size, WHITE)
-        draw_image()
-        g_image.save(image_filename)
-        papirus.display(g_image)
-        papirus.update()
-        return
-    except:
-        logging.debug("Papirus failed.", exc_info=1)
-
     g_image = Image.new('1', (960, 540), WHITE)
     draw_image()
+    humidity = Image.open("symbols/humidity.png")
+    img1 = Image.open("symbols/sun.png")
+    img2 = Image.open("symbols/rainy.png")
+    img3 = Image.open("symbols/cloudy.png")
+    img4 = Image.open("symbols/snowy.png")
+    img1 = img1.resize((100,100))
+    img2 = img2.resize((100,100))
+    img3 = img3.resize((100,100))
+    img4 = img4.resize((100,100))
+    g_image.paste(humidity, (600,225), mask=humidity)
+    g_image.paste(img1, (60,300), mask=img1)
+    g_image.paste(img2, (300,300), mask=img2)
+    g_image.paste(img3, (540,300), mask=img3)
+    g_image.paste(img4, (780,300), mask=img4)
     g_image.save(image_filename)
 
 # main
