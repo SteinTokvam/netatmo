@@ -15,6 +15,8 @@ import http.server
 import socketserver
 import threading
 import display
+import utils
+import weather
 
 logging.basicConfig(level = logging.INFO, format = '%(asctime)-15s | %(message)s')
 
@@ -28,60 +30,11 @@ g_config = dict()
 g_token = dict()
 g_data = dict()
 
-def timestr(t):
-    return time.strftime("%H:%M",time.localtime(t))
-
-#def nowstr():
-#    return time.strftime("%Y-%m-%d %H:%M:%S",time.localtime())
-
-def read_json(filename):
-    """Read a JSON file to a dict object."""
-    with open(filename, 'r') as f:
-        try:
-            data = json.load(f)
-        except json.decoder.JSONDecodeError:
-            logging.warning("read_json() JSONDecodeError", exc_info=1)
-            data = dict()
-    return data
-
-def write_json(data, filename):
-    """Write a dict object to a JSON file."""
-    with open(filename, 'w') as f:
-        json.dump(data, f, indent = 2)
-
-#def authenticate():
-#    """NetAtmo API authentication. Result:  g_token and token.json file."""
-#    global g_token
-#    payload = {
-#        'grant_type': 'password',
-#        'username': g_config['username'],
-#        'password': g_config['password'],
-#        'client_id': g_config['client_id'],
-#        'client_secret': g_config['client_secret'],
-#        'scope': 'read_station'
-#    }
-#    try:
-#        response = requests.post("https://api.netatmo.com/oauth2/token", data=payload)
-#        logging.debug("%d %s", response.status_code, response.text)
-#        response.raise_for_status()
-#        g_token = response.json()
-#        write_json(g_token, token_filename)
-#        logging.info("authenticate() OK.")
-#    except requests.exceptions.HTTPError as e:
-#        logging.error("authenticate() HTTPError")
-#        logging.error("%d %s", e.response.status_code, e.response.text)
-#        #logging.info("authenticate() exiting")
-#        #sys.exit(1)
-#    except requests.exceptions.RequestException:
-#        logging.error("authenticate() RequestException", exc_info=1)
-#        #logging.info("authenticate() exiting")
-#        #sys.exit(1)
-
 def get_new_token():
     """Instruct the user to authenticate on the dev portal and get a new token."""
     if not os.path.isfile(token_filename):
         g_token = {"access_token": "xxxx", "refresh_token": "xxxx"}
-        write_json(g_token, token_filename)
+        utils.write_json(g_token, token_filename)
 
     logging.error('_______________________________________________________')
     logging.error("Please generate a new access token, edit %s,", token_filename)
@@ -118,7 +71,7 @@ def refresh_token():
         logging.debug("%d %s", response.status_code, response.text)
         response.raise_for_status()
         g_token = response.json()
-        write_json(g_token, token_filename)
+        utils.write_json(g_token, token_filename)
         logging.info("refresh_token() OK.")
     except requests.exceptions.HTTPError as e:
         logging.warning("refresh_token() HTTPError")
@@ -146,7 +99,7 @@ def get_station_data():
         logging.debug("%d %s", response.status_code, response.text)
         response.raise_for_status()
         g_data = response.json()
-        write_json(g_data, data_filename)    
+        utils.write_json(g_data, data_filename)    
     except requests.exceptions.HTTPError as e:
         logging.warning("get_station_data() HTTPError")
         logging.warning("%d %s", e.response.status_code, e.response.text)
@@ -165,7 +118,7 @@ def display_console():
     # console
     displaystr = "No data"
     if "body" in g_data:
-        displaystr = "Time " + timestr(g_data["time_server"])
+        displaystr = "Time " + utils.timestr(g_data["time_server"])
         device = g_data["body"]["devices"][0]
         if "dashboard_data" in device:
             if "Pressure" in device["dashboard_data"]:
@@ -223,6 +176,7 @@ def updater_thread():
     global g_token, g_config, g_data
     while True:
         get_station_data()
+        weather.get_weather_data()
         display_console()
 
         display.main()
@@ -237,10 +191,10 @@ def main():
 
     # read config
     if os.path.isfile(config_filename):
-        g_config = read_json(config_filename)
+        g_config = utils.read_json(config_filename)
     else:
         g_config = {'client_id': 'xxxx', 'client_secret': 'xxxx', 'device_id': 'xxxx'}
-        write_json(g_config, config_filename)
+        utils.write_json(g_config, config_filename)
         logging.error("main() error:")
         logging.error("Config file not found: creating an empty one.")
         logging.error("Please edit %s and try again.", config_filename)
@@ -248,7 +202,7 @@ def main():
 
     # read last token    
     if os.path.isfile(token_filename):
-        g_token = read_json(token_filename)
+        g_token = utils.read_json(token_filename)
     else:
         #authenticate()
         logging.error("main() error:")
@@ -258,7 +212,7 @@ def main():
 
     # read last data
     if os.path.isfile(data_filename):
-        g_data = read_json(data_filename)
+        g_data = utils.read_json(data_filename)
 
     # Start updater in background thread
     t = threading.Thread(target=updater_thread, daemon=True)

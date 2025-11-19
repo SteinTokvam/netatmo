@@ -9,7 +9,7 @@ output: copy of the screen in file: image.bmp
 import json
 import time
 import os
-import sys
+import utils
 import logging
 from PIL import Image
 from PIL import ImageDraw
@@ -29,13 +29,12 @@ if not os.path.isfile(font_file):
         exit()
 # File names
 data_filename = 'data/data.json'
+weather_data_filename = 'data/weather_data.json'
 image_filename = 'image.bmp'
 # Global variables
 g_data = dict()
+g_weather_data = dict()
 g_image = None
-
-def timestr(t):
-    return time.strftime('%H:%M',time.localtime(t))
 
 def read_json(filename):
     """Read a JSON file to a dict object."""
@@ -65,6 +64,7 @@ def textsize(text, font):
 def draw_image():
     """Draws the image in memory (g_image)"""
     global g_data
+    global g_weather_data
     global g_image
 
     # prepare for drawing
@@ -73,10 +73,6 @@ def draw_image():
     print(g_image.size)
 
     # base font size on mono spaced font
-    #font_size_temp = int((width - 4) / (10 * 0.65))     # room for 10 chars
-    #font_size_time = int((width - 10) / (20 * 0.65))    # YYYY-MM-DD HH:MM:SS
-    #font_temp = ImageFont.truetype(font_file, font_size_temp)
-    #font_time = ImageFont.truetype(font_file, font_size_time)
     font_text = ImageFont.truetype(font_file, 25)
     font_temp = ImageFont.truetype(font_file, 50)
     font_time = ImageFont.truetype(font_file, 15)
@@ -89,6 +85,16 @@ def draw_image():
         return
     if not ("body" in g_data):
         logging.error("Bad data format")
+        return
+    
+    # read weather data
+    if os.path.isfile(weather_data_filename):
+        g_weather_data = read_json(weather_data_filename)
+    else:
+        logging.error("No weather data file")
+        return
+    if not ("properties" in g_weather_data):
+        logging.error("Bad weater data format")
         return
 
     # Units
@@ -110,7 +116,13 @@ def draw_image():
     rain_str = 'N/A'
     wind_str = 'N/A'
 
-    data_time_str = "Sist oppdatert: " + timestr(g_data["time_server"])
+    data_time_str = "Sist oppdatert: " + utils.timestr(g_data["time_server"])
+
+    forecast_now = "N/A"
+    forecast_6_hours = "N/A"
+    forecast_12_hours = "N/A"
+    forecast_18_hours = "N/A"
+    forecast_24_hours = "N/A"
 
     # main module: indoor temperature (line 1) and pressure (not used)
     device = g_data["body"]["devices"][0]
@@ -144,6 +156,22 @@ def draw_image():
             elif module_type == "NAModule4":
                 # Optional indoor module
                 pass
+    
+    # weather forecast
+    if "properties" in g_weather_data:
+        timeseries = g_weather_data["properties"]["timeseries"]
+        if len(timeseries) > 23:
+            forecast_now = timeseries[0]
+            forecast_now_details = forecast_now["data"]["next_6_hours"]["details"]
+            forecast_6_hours = timeseries[5]
+            forecast_6_hours_details = forecast_6_hours["data"]["next_6_hours"]["details"]
+            forecast_12_hours = timeseries[11]
+            forecast_12_hours_details = forecast_12_hours["data"]["next_6_hours"]["details"]
+            forecast_18_hours = timeseries[17]
+            forecast_18_hours_details = forecast_18_hours["data"]["next_6_hours"]["details"]
+            forecast_24_hours = timeseries[23]
+            forecast_24_hours_details = forecast_24_hours["data"]["next_6_hours"]["details"]
+
 
     # width and height of strings
     (width_indoor, height_indoor) = textsize(indoor_temp_str, font=font_temp)
@@ -162,11 +190,19 @@ def draw_image():
     first_window_y = int(height/8)
     second_window_x = int((width/2)+width/8)
     second_window_y = int(height/8)
+    bottom_window_x = int(10)
+    bottom_window_y = int(height/2+50)
 
     # Draws rectangle and lines
     draw.rectangle((2, 2, width - 2, height - 2), fill=WHITE, outline=BLACK)
     draw.line((width/2,2, width/2,height/2), fill=BLACK, width=2)
     draw.line((2,height/2, width-2,height/2), fill=BLACK, width=2)
+
+    # lines for bottom window
+    draw.line((width/4,height/2, width/4,height-2), fill=BLACK, width=2)
+    draw.line(((width/4)+(width/4),height/2, (width/4)+(width/4),height-2), fill=BLACK, width=2)
+    draw.line(((width/4)+(width/4)+(width/4),height/2, (width/4)+(width/4)+(width/4),height-2), fill=BLACK, width=2)
+    draw.line(((width/4)+(width/4)+(width/4)+(width/4),height/2, (width/4)+(width/4)+(width/4)+(width/4),height-2), fill=BLACK, width=2)
 
     # temperatures
     draw.text((first_window_x, first_window_y), indoor_temp_str, fill=BLACK, font=font_temp)
@@ -185,6 +221,19 @@ def draw_image():
 
     # time
     draw.text((width - width_time - 5, 5), data_time_str, fill = BLACK, font = font_time)
+
+    # weather forecast
+    draw.text((bottom_window_x, bottom_window_y), utils.format_time_str(forecast_6_hours["time"]), fill=BLACK, font = font_text)
+    draw.text((bottom_window_x, bottom_window_y+30), '{0:.1f}'.format(forecast_now_details["air_temperature_min"]) + unit_temp + " / " + '{0:.1f}'.format(forecast_now_details["air_temperature_max"]) + unit_temp, fill=BLACK, font = font_text)
+
+    draw.text((bottom_window_x+(width/4), bottom_window_y), utils.format_time_str(forecast_12_hours["time"]), fill=BLACK, font = font_text)
+    draw.text((bottom_window_x+(width/4), bottom_window_y+30), '{0:.1f}'.format(forecast_12_hours_details["air_temperature_min"]) + unit_temp + " / " + '{0:.1f}'.format(forecast_12_hours_details["air_temperature_max"]) + unit_temp, fill=BLACK, font = font_text)
+
+    draw.text((bottom_window_x+((width/4)*2), bottom_window_y), utils.format_time_str(forecast_18_hours["time"]), fill=BLACK, font = font_text)
+    draw.text((bottom_window_x+((width/4)*2), bottom_window_y+30), '{0:.1f}'.format(forecast_18_hours_details["air_temperature_min"]) + unit_temp + " / " + '{0:.1f}'.format(forecast_18_hours_details["air_temperature_max"]) + unit_temp, fill=BLACK, font = font_text)
+
+    draw.text((bottom_window_x+((width/4)*3), bottom_window_y), utils.format_time_str(forecast_24_hours["time"]), fill=BLACK, font = font_text)
+    draw.text((bottom_window_x+((width/4)*3), bottom_window_y+30), '{0:.1f}'.format(forecast_24_hours_details["air_temperature_min"]) + unit_temp + " / " + '{0:.1f}'.format(forecast_24_hours_details["air_temperature_max"]) + unit_temp, fill=BLACK, font = font_text)
 
 def main():
     """Main function"""

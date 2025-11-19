@@ -1,0 +1,24 @@
+import json
+import time
+import logging
+
+def read_json(filename):
+    """Read a JSON file to a dict object."""
+    with open(filename, 'r') as f:
+        try:
+            data = json.load(f)
+        except json.decoder.JSONDecodeError:
+            logging.warning("read_json() JSONDecodeError", exc_info=1)
+            data = dict()
+    return data
+
+def write_json(data, filename):
+    """Write a dict object to a JSON file."""
+    with open(filename, 'w') as f:
+        json.dump(data, f, indent = 2)
+
+def timestr(t):
+    return time.strftime("%H:%M",time.localtime(t))
+
+def format_time_str(t):
+    return t.split("T")[0] + " " + t.split("T")[1][0:5]
