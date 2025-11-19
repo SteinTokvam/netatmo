@@ -192,29 +192,6 @@ def main():
     except:
         logging.debug("Papirus failed.", exc_info=1)
 
-    try:
-        # *** Waveshare 2.7inch e-Paper HAT ***
-        libdir = os.path.realpath(os.getenv('HOME') + '/e-Paper/RaspberryPi_JetsonNano/python/lib')
-        if os.path.exists(libdir):
-            sys.path.append(libdir)
-        else:
-            libdir = os.path.realpath(os.getenv('HOME') + '/e-Paper/RaspberryPi&JetsonNano/python/lib')
-            if os.path.exists(libdir):
-                sys.path.append(libdir)
-        from waveshare_epd import epd2in7
-        epd = epd2in7.EPD()
-        epd.init()
-        g_image = Image.new('1', (epd.height, epd.width), 255)
-        draw_image()
-        g_image.save(image_filename)
-        epd.display(epd.getbuffer(g_image))
-        epd.sleep()
-        return
-    except:
-        logging.debug("Waveshare failed.", exc_info=1)
-
-    # *** no known screen: just save the bmp
-    logging.debug("No known screen.")
     g_image = Image.new('1', (960, 540), WHITE)
     draw_image()
     g_image.save(image_filename)
