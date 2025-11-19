@@ -11,6 +11,10 @@ import time
 import sys
 import os
 import logging
+import http.server
+import socketserver
+import threading
+import display
 
 logging.basicConfig(level = logging.INFO, format = '%(asctime)-15s | %(message)s')
 
@@ -195,13 +199,40 @@ def display_console():
                         displaystr += " | " + module_name + " " + str(module["dashboard_data"]["Temperature"])
     logging.info(displaystr)
 
+class WeatherHandler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/weather.json":
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(weather_data).encode('utf-8'))
+        elif self.path == "/image.bmp":
+            if os.path.exists("image.bmp"):
+                with open("image.bmp", "rb") as f:
+                    bmp_data = f.read()
+                self.send_response(200)
+                self.send_header("Content-type", "image/bmp")
+                self.send_header("Content-Length", str(len(bmp_data)))
+                self.end_headers()
+                self.wfile.write(bmp_data)
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+def updater_thread():
+    global g_token, g_config, g_data
+    while True:
+        get_station_data()
+        display_console()
+
+        display.main()
+        time.sleep(600)  # Sleep for 10 min
+
 def main():
     """Main function"""
     global g_token
     global g_config
     global g_data
-    #print("netatmo.py v0.17 2019-10-31")
-    #print("netatmo.py v0.18 2021-01-10")
     print("netatmo.py v0.19 2024-07-21")
 
     # read config
@@ -229,22 +260,14 @@ def main():
     if os.path.isfile(data_filename):
         g_data = read_json(data_filename)
 
-    # main loop
-    while True:
-        get_station_data()
-        display_console()
-        # external display
-        if os.path.isfile('./custom_display.py'):
-            os.system('python3 ./custom_display.py')
-        elif os.path.isfile('./display.py'):
-            os.system('python3 display.py')
-        # sleep 10 minutes
-        try:
-            time.sleep(600)
-        except KeyboardInterrupt:
-            # Crtl+C
-            logging.info("Keyboard exception received. Exiting.")
-            return
+    # Start updater in background thread
+    t = threading.Thread(target=updater_thread, daemon=True)
+    t.start()
+
+    PORT = 8000
+    print(f"Serving at http://0.0.0.0:{PORT}/weather.json")
+    with socketserver.TCPServer(("", PORT), WeatherHandler) as httpd:
+        httpd.serve_forever()
 
 if __name__ == '__main__':
     main()
