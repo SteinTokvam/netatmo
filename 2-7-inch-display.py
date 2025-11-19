@@ -77,9 +77,9 @@ def draw_image():
     #font_size_time = int((width - 10) / (20 * 0.65))    # YYYY-MM-DD HH:MM:SS
     #font_temp = ImageFont.truetype(font_file, font_size_temp)
     #font_time = ImageFont.truetype(font_file, font_size_time)
-    font_text = ImageFont.truetype(font_file, 25)
-    font_temp = ImageFont.truetype(font_file, 50)
-    font_time = ImageFont.truetype(font_file, 15)
+    font_text = ImageFont.truetype(font_file, 12)
+    font_temp = ImageFont.truetype(font_file, 25)
+    font_time = ImageFont.truetype(font_file, 20)
 
     # read data
     if os.path.isfile(data_filename):
@@ -107,7 +107,7 @@ def draw_image():
     rain_str = 'N/A'
     wind_str = 'N/A'
 
-    data_time_str = "Sist oppdatert: " + timestr(g_data["time_server"])
+    data_time_str = timestr(g_data["time_server"])
 
     # main module: indoor temperature (line 1) and pressure (not used)
     device = g_data["body"]["devices"][0]
@@ -153,25 +153,22 @@ def draw_image():
     if width_rain > txtwidth:
         txtwidth = width_rain
 
-    first_window_x = int(width/8)
-    first_window_y = int(height/8)
-    second_window_x = int((width/2)+width/8)
-    second_window_y = int(height/8)
+    x = int((width - txtwidth) / 2)-15
+    text_x = int((width - (txtwidth+85)-35))
+    y = int(((height - 4*txtheight - 10) / 2)-5)
 
-    # Draws rectangle and lines
+
     draw.rectangle((2, 2, width - 2, height - 2), fill=WHITE, outline=BLACK)
-    draw.line((width/2,2, width/2,height/2), fill=BLACK, width=2)
-    draw.line((2,height/2, width-2,height/2), fill=BLACK, width=2)
+    # temperatures and rain
+    draw.text((text_x, y - txtheight + 33), "Inne:", fill=BLACK, font=font_text)
+    draw.text((text_x, y - txtheight + 60), "Ute:", fill=BLACK, font=font_text)
+    draw.text((text_x, y - txtheight + 80), "Regn:", fill=BLACK, font=font_text)
+    draw.text((text_x, y - txtheight + 105), "Vind:", fill=BLACK, font=font_text)
 
-    # temperatures
-    draw.text((first_window_x, first_window_y), indoor_temp_str, fill=BLACK, font=font_temp)
-    draw.text((first_window_x, first_window_y + txtheight+5), outdoor_temp_str, fill=BLACK, font = font_temp)
-
-    # rain and wind
-    draw.text((second_window_x, second_window_y), rain_str, fill=BLACK, font = font_temp)
-    if wind_str != 'N/A':
-        draw.text((second_window_x, second_window_y + txtheight + 5), wind_str, fill=BLACK, font = font_temp)
-    
+    draw.text((x, y), indoor_temp_str, fill=BLACK, font=font_temp)
+    draw.text((x, y + txtheight+5), outdoor_temp_str, fill=BLACK, font = font_temp)
+    draw.text((x, y + 2*txtheight + 10), rain_str, fill=BLACK, font = font_temp)
+    draw.text((x, y + 3*txtheight + 15), wind_str, fill=BLACK, font = font_temp)
     # time
     draw.text((width - width_time - 5, 5), data_time_str, fill = BLACK, font = font_time)
 
@@ -215,7 +212,8 @@ def main():
 
     # *** no known screen: just save the bmp
     logging.debug("No known screen.")
-    g_image = Image.new('1', (960, 540), WHITE)
+    # g_image = Image.new('1', (264, 176), WHITE)
+    g_image = Image.new('1', (250, 122), WHITE)
     draw_image()
     g_image.save(image_filename)
 
