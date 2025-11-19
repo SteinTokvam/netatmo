@@ -19,9 +19,9 @@ import display
 logging.basicConfig(level = logging.INFO, format = '%(asctime)-15s | %(message)s')
 
 # JSON file names
-config_filename = "config.json"
-token_filename = "token.json"
-data_filename = "data.json"
+config_filename = "config/config.json"
+token_filename = "config/token.json"
+data_filename = "data/data.json"
 
 # Global variables
 g_config = dict()

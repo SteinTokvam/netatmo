@@ -28,14 +28,11 @@ if not os.path.isfile(font_file):
         print("No font file")
         exit()
 # File names
-data_filename = 'data.json'
+data_filename = 'data/data.json'
 image_filename = 'image.bmp'
 # Global variables
 g_data = dict()
 g_image = None
-
-def datetimestr(t):
-    return time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(t))
 
 def timestr(t):
     return time.strftime('%H:%M',time.localtime(t))
