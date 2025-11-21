@@ -47,7 +47,7 @@ def main():
 
     # start web server
     PORT = 8000
-    serverLogger.info(f"Serving at http://0.0.0.0:{PORT}/weather.json")
+    serverLogger.info(f"Serving at http://0.0.0.0:{PORT}/image.bmp")
     with socketserver.TCPServer(("", PORT), WeatherHandler) as httpd:
         httpd.serve_forever()
 
