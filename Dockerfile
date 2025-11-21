@@ -21,4 +21,4 @@ COPY server.py ./
 COPY free-sans.ttf ./
 
 # Set default command (adjust as needed)
-CMD ["python", "netatmo.py"]
+CMD ["python", "server.py"]
