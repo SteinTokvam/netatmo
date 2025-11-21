@@ -15,6 +15,7 @@ COPY netatmo.py ./
 COPY utils.py ./
 COPY weather.py ./
 COPY display.py ./
+COPY server.py ./
 
 # copy font
 COPY free-sans.ttf ./

@@ -2,13 +2,15 @@ import json
 import time
 import logging
 
+utilsLogger = logging.getLogger(__name__)
+
 def read_json(filename):
     """Read a JSON file to a dict object."""
     with open(filename, 'r') as f:
         try:
             data = json.load(f)
         except json.decoder.JSONDecodeError:
-            logging.warning("read_json() JSONDecodeError", exc_info=1)
+            utilsLogger.warning("read_json() JSONDecodeError", exc_info=1)
             data = dict()
     return data
 

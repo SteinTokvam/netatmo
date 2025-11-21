@@ -7,7 +7,6 @@ output: copy of the screen in file: image.bmp
 """
 
 import json
-import time
 import os
 import utils
 import logging
@@ -15,7 +14,7 @@ from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 
-logging.basicConfig(level=logging.WARNING)
+displayLogger = logging.getLogger(__name__)
 
 WHITE = 1
 BLACK = 0
@@ -25,8 +24,8 @@ font_file = './free-sans.ttf'
 if not os.path.isfile(font_file):
     font_file = '../freefont/FreeSans.ttf'
     if not os.path.isfile(font_file):
-        print("No font file")
-        exit()
+        displayLogger.error("No font file")
+        exit(1)
 # File names
 data_filename = 'data/data.json'
 weather_data_filename = 'data/weather_data.json'
@@ -70,7 +69,6 @@ def draw_image():
     # prepare for drawing
     draw = ImageDraw.Draw(g_image)
     width, height = g_image.size
-    print(g_image.size)
 
     # base font size on mono spaced font
     font_text = ImageFont.truetype(font_file, 25)
@@ -81,20 +79,20 @@ def draw_image():
     if os.path.isfile(data_filename):
         g_data = read_json(data_filename)
     else:
-        logging.error("No data file")
+        displayLogger.error("No data file")
         return
     if not ("body" in g_data):
-        logging.error("Bad data format")
+        displayLogger.error("Bad data format")
         return
     
     # read weather data
     if os.path.isfile(weather_data_filename):
         g_weather_data = read_json(weather_data_filename)
     else:
-        logging.error("No weather data file")
+        displayLogger.error("No weather data file")
         return
     if not ("properties" in g_weather_data):
-        logging.error("Bad weater data format")
+        displayLogger.error("Bad weather data format")
         return
 
     # Units

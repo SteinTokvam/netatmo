@@ -5,20 +5,16 @@ Every 10 minutes, gets the weather station data to a
 local data.json file, and calls display.py.
 """
 
-import json
 import requests
 import time
 import sys
 import os
 import logging
-import http.server
-import socketserver
-import threading
 import display
 import utils
 import weather
 
-logging.basicConfig(level = logging.INFO, format = '%(asctime)-15s | %(message)s')
+netatmoLogger = logging.getLogger(__name__)
 
 # JSON file names
 config_filename = "config/config.json"
@@ -36,24 +32,24 @@ def get_new_token():
         g_token = {"access_token": "xxxx", "refresh_token": "xxxx"}
         utils.write_json(g_token, token_filename)
 
-    logging.error('_______________________________________________________')
-    logging.error("Please generate a new access token, edit %s,", token_filename)
-    logging.error("and try again.")
-    logging.error(' - Go to https://dev.netatmo.com/apps/, authenticate')
-    logging.error('   if necessary, and select your app.')
-    logging.error(' - Under "Token generator", select the "read_station"')
-    logging.error('   scope and click "Generate Token".')
-    logging.error(' - It takes a while, but you will get a page where you')
-    logging.error('   have to authorize your app to access to your data.')
-    logging.error(' - Click "Yes I accept".')
-    logging.error('   You now have a new Access Token and a new Refresh')
-    logging.error('   token.')
-    logging.error(' - Click on the access token. It will copy it to your')
-    logging.error('   clipboard. Paste it in your %s file in place', token_filename)
-    logging.error('   of the access_token placeholder.')
-    logging.error(' - same thing for the refresh token.')
-    logging.error(' - save the %s file.', token_filename)
-    logging.error('_______________________________________________________')
+    netatmoLogger.error('_______________________________________________________')
+    netatmoLogger.error("Please generate a new access token, edit %s,", token_filename)
+    netatmoLogger.error("and try again.")
+    netatmoLogger.error(' - Go to https://dev.netatmo.com/apps/, authenticate')
+    netatmoLogger.error('   if necessary, and select your app.')
+    netatmoLogger.error(' - Under "Token generator", select the "read_station"')
+    netatmoLogger.error('   scope and click "Generate Token".')
+    netatmoLogger.error(' - It takes a while, but you will get a page where you')
+    netatmoLogger.error('   have to authorize your app to access to your data.')
+    netatmoLogger.error(' - Click "Yes I accept".')
+    netatmoLogger.error('   You now have a new Access Token and a new Refresh')
+    netatmoLogger.error('   token.')
+    netatmoLogger.error(' - Click on the access token. It will copy it to your')
+    netatmoLogger.error('   clipboard. Paste it in your %s file in place', token_filename)
+    netatmoLogger.error('   of the access_token placeholder.')
+    netatmoLogger.error(' - same thing for the refresh token.')
+    netatmoLogger.error(' - save the %s file.', token_filename)
+    netatmoLogger.error('_______________________________________________________')
     sys.exit(1)
 
 def refresh_token():
@@ -68,22 +64,19 @@ def refresh_token():
     }
     try:
         response = requests.post("https://api.netatmo.com/oauth2/token", data=payload)
-        logging.debug("%d %s", response.status_code, response.text)
+        netatmoLogger.debug("%d %s", response.status_code, response.text)
         response.raise_for_status()
         g_token = response.json()
         utils.write_json(g_token, token_filename)
-        logging.info("refresh_token() OK.")
+        netatmoLogger.info("refresh_token() OK.")
     except requests.exceptions.HTTPError as e:
-        logging.warning("refresh_token() HTTPError")
-        logging.warning("%d %s", e.response.status_code, e.response.text)
-        #if e.response.status_code == 403:
-        #    logging.info("refresh_token() calling authenticate()")
-        #    authenticate()
-        logging.warning("refresh_token() failed. Need a new access token.")
+        netatmoLogger.warning("refresh_token() HTTPError")
+        netatmoLogger.warning("%d %s", e.response.status_code, e.response.text)
+        netatmoLogger.warning("refresh_token() failed. Need a new access token.")
         get_new_token()
         return
     except requests.exceptions.RequestException:
-        logging.error("refresh_token() RequestException", exc_info=1)
+        netatmoLogger.error("refresh_token() RequestException", exc_info=1)
 
 def get_station_data():
     """Gets Netatmo weather station data. Result: g_data and data.json file."""
@@ -96,21 +89,21 @@ def get_station_data():
     }
     try:
         response = requests.post("https://api.netatmo.com/api/getstationsdata", params=params)
-        logging.debug("%d %s", response.status_code, response.text)
+        netatmoLogger.debug("%d %s", response.status_code, response.text)
         response.raise_for_status()
         g_data = response.json()
         utils.write_json(g_data, data_filename)    
     except requests.exceptions.HTTPError as e:
-        logging.warning("get_station_data() HTTPError")
-        logging.warning("%d %s", e.response.status_code, e.response.text)
+        netatmoLogger.warning("get_station_data() HTTPError")
+        netatmoLogger.warning("%d %s", e.response.status_code, e.response.text)
         if e.response.status_code == 403:
-            logging.info("get_station_data() calling refresh_token()")
+            netatmoLogger.info("get_station_data() calling refresh_token()")
             refresh_token()
             # retry
-            logging.info("get_station_data() retrying")
+            netatmoLogger.info("get_station_data() retrying")
             get_station_data()
     except requests.exceptions.RequestException:
-        logging.error("get_station_data() RequestException:", exc_info=1)
+        netatmoLogger.error("get_station_data() RequestException:", exc_info=1)
 
 def display_console():
     """Displays weather data on the console. Input: g_data"""
@@ -150,27 +143,7 @@ def display_console():
                         module_name = "Opt Indoor"
                     if "Temperature" in module["dashboard_data"]:
                         displaystr += " | " + module_name + " " + str(module["dashboard_data"]["Temperature"])
-    logging.info(displaystr)
-
-class WeatherHandler(http.server.SimpleHTTPRequestHandler):
-    def do_GET(self):
-        if self.path == "/weather.json":
-            self.send_response(200)
-            self.send_header("Content-type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps(weather_data).encode('utf-8'))
-        elif self.path == "/image.bmp":
-            if os.path.exists("image.bmp"):
-                with open("image.bmp", "rb") as f:
-                    bmp_data = f.read()
-                self.send_response(200)
-                self.send_header("Content-type", "image/bmp")
-                self.send_header("Content-Length", str(len(bmp_data)))
-                self.end_headers()
-                self.wfile.write(bmp_data)
-        else:
-            self.send_response(404)
-            self.end_headers()
+    netatmoLogger.info(displaystr)
 
 def updater_thread():
     global g_token, g_config, g_data
@@ -182,12 +155,11 @@ def updater_thread():
         display.main()
         time.sleep(600)  # Sleep for 10 min
 
-def main():
+def startNetatmoService():
     """Main function"""
     global g_token
     global g_config
     global g_data
-    print("netatmo.py v0.19 2024-07-21")
 
     # read config
     if os.path.isfile(config_filename):
@@ -195,9 +167,9 @@ def main():
     else:
         g_config = {'client_id': 'xxxx', 'client_secret': 'xxxx', 'device_id': 'xxxx'}
         utils.write_json(g_config, config_filename)
-        logging.error("main() error:")
-        logging.error("Config file not found: creating an empty one.")
-        logging.error("Please edit %s and try again.", config_filename)
+        netatmoLogger.error("main() error:")
+        netatmoLogger.error("Config file not found: creating an empty one.")
+        netatmoLogger.error("Please edit %s and try again.", config_filename)
         return
 
     # read last token    
@@ -205,23 +177,16 @@ def main():
         g_token = utils.read_json(token_filename)
     else:
         #authenticate()
-        logging.error("main() error:")
-        logging.error("Token file not found: creating an empty one.")
+        netatmoLogger.error("main() error:")
+        netatmoLogger.error("Token file not found: creating an empty one.")
         get_new_token()
         return
 
     # read last data
     if os.path.isfile(data_filename):
         g_data = utils.read_json(data_filename)
-
-    # Start updater in background thread
-    t = threading.Thread(target=updater_thread, daemon=True)
-    t.start()
-
-    PORT = 8000
-    print(f"Serving at http://0.0.0.0:{PORT}/weather.json")
-    with socketserver.TCPServer(("", PORT), WeatherHandler) as httpd:
-        httpd.serve_forever()
+    
+    updater_thread()
 
 if __name__ == '__main__':
-    main()
+    startNetatmoService()
