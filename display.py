@@ -150,7 +150,8 @@ def draw_image():
                 wind_str = '{0:.1f}'.format(module_data["WindStrength"]) + " " + unit_wind
             elif module_type == "NAModule3":
                 # Rain Gauge
-                rain_str = '{0:.1f}'.format(module_data["sum_rain_24"]) + " mm"
+                if module_data["sum_rain_24"] is not None:
+                    rain_str = '{0:.1f}'.format(module_data["sum_rain_24"]) + " mm"
             elif module_type == "NAModule4":
                 # Optional indoor module
                 pass
