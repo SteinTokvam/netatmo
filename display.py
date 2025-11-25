@@ -147,11 +147,10 @@ def draw_image():
                     outdoor_temp_str += trend_symbol(module_data["temp_trend"])
             elif module_type == "NAModule2":
                 # Wind Gauge
-                wind_str = '{0:.1f}'.format(module_data["WindStrength"]) + " " + unit_wind
+                wind_str = '{0:.1f}'.format(module_data.get("WindStrength", 0)) + " " + unit_wind
             elif module_type == "NAModule3":
                 # Rain Gauge
-                if module_data["sum_rain_24"] is not None:
-                    rain_str = '{0:.1f}'.format(module_data["sum_rain_24"]) + " mm"
+                rain_str = '{0:.1f}'.format(module_data.get("sum_rain_24", 0)) + " mm"
             elif module_type == "NAModule4":
                 # Optional indoor module
                 pass
