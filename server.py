@@ -53,6 +53,8 @@ class WeatherHandler(http.server.SimpleHTTPRequestHandler):
                     dashboard_data.append(device["dashboard_data"])
                     dashboard_data[-1]["module_type"] = device["type"]
             weather_data["netatmo"] = dashboard_data
+            main_unit = dashboard_data[0]
+            weather_data["netatmo"] = main_unit["Temperature"]
 
     def do_GET(self):
         if self.path == "/weather.json":
