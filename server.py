@@ -52,9 +52,21 @@ class WeatherHandler(http.server.SimpleHTTPRequestHandler):
                 if "dashboard_data" in device:
                     dashboard_data.append(device["dashboard_data"])
                     dashboard_data[-1]["module_type"] = device["type"]
-            weather_data["netatmo"] = dashboard_data
+
+            weather_data["netatmo"] = {}
             main_unit = dashboard_data[0]
-            weather_data["netatmo"] = main_unit["Temperature"]
+            weather_data["netatmo"]["indoor_temperature"] = main_unit["Temperature"]
+            weather_data["netatmo"]["indoor_humidity"] = main_unit["Humidity"]
+            for module in dashboard_data[1:]:
+                print(module["module_type"])
+                if module["module_type"] == "NAModule1":
+                    weather_data["netatmo"]["outdoor_temperature"] = module["Temperature"]
+                    weather_data["netatmo"]["outdoor_humidity"] = module["Humidity"]
+                elif module["module_type"] == "NAModule3":
+                    weather_data["netatmo"]["rain"] = module["sum_rain_24"]
+                elif module["module_type"] == "NAModule2":
+                    weather_data["netatmo"]["wind_strength"] = module["WindStrength"]
+                    weather_data["netatmo"]["wind_angle"] = module["WindAngle"]
 
     def do_GET(self):
         if self.path == "/weather.json":
