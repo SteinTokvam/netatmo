@@ -13,8 +13,10 @@ import logging
 import display
 import utils
 import weather
+import threading
 
 netatmoLogger = logging.getLogger(__name__)
+stop_event = threading.Event()
 
 # JSON file names
 config_filename = "config/config.json"
@@ -23,7 +25,9 @@ data_filename = "data/data.json"
 
 # Global variables
 g_config = dict()
+g_config_default = '{"client_id": "xxxx", "client_secret": "xxxx", "device_id": "xxxx", "refresh_time": 600}'
 g_token = dict()
+g_token_default = '{"access_token": "xxxx", "refresh_token": "xxxx"}'
 g_data = dict()
 
 def get_new_token_info():
@@ -141,22 +145,11 @@ def display_console():
                         displaystr += " | " + module_name + " " + str(module["dashboard_data"]["Temperature"])
     netatmoLogger.info(displaystr)
 
-def updater_thread():
-    global g_token, g_config, g_data
-    while True:
-        get_station_data()
-        weather.get_weather_data()
-        display_console()
-
-        display.main()
-        time.sleep(600)  # Sleep for 10 min
-
-def start_netatmo_service():
-    """Main function"""
+def check_config():
+    """Check configuration validity"""
     global g_token
     global g_config
-    global g_data
-
+    
     # check directories
     if not os.path.isdir("config"):
         os.mkdir("config")
@@ -170,8 +163,10 @@ def start_netatmo_service():
             netatmoLogger.error("main() error:")
             netatmoLogger.error("Please edit %s and try again.", config_filename)
             sys.exit(1)
+        if 'refresh_time' not in g_config or g_config['refresh_time'] < 60:
+            g_config['refresh_time'] = 600 # default 10 minutes
     else:
-        g_config = {'client_id': 'xxxx', 'client_secret': 'xxxx', 'device_id': 'xxxx'}
+        g_config = g_config_default
         utils.write_json(g_config, config_filename)
         netatmoLogger.error("main() error:")
         netatmoLogger.error("Please edit %s and try again.", config_filename)
@@ -180,17 +175,35 @@ def start_netatmo_service():
     if os.path.isfile(token_filename):
         g_token = utils.read_json(token_filename)
     else:
-        g_token = {"access_token": "xxxx", "refresh_token": "xxxx"}
+        g_token = g_token_default
         utils.write_json(g_token, token_filename)
         get_new_token_info()
 
+def start_netatmo_service():
+    """Main function"""
+    global g_config
+    global g_data
+
+    check_config()
+
     print("Starting NetAtmo service...")
+    print(g_config['refresh_time'], "seconds refresh time.")
 
     # read last data
     if os.path.isfile(data_filename):
         g_data = utils.read_json(data_filename)
     
-    updater_thread()
+    while not stop_event.is_set():
+        get_station_data()
+        weather.get_weather_data()
+        display_console()
+        display.main()
+
+        # sleep in small chunks so shutdown is responsive
+        for _ in range(g_config['refresh_time']):
+            if stop_event.is_set():
+                break
+            time.sleep(1)
 
 if __name__ == '__main__':
     start_netatmo_service()
