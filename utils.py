@@ -24,3 +24,8 @@ def timestr(t):
 
 def format_time_str(t):
     return t.split("T")[0] + " " + t.split("T")[1][0:5]
+
+def textsize(text, font):
+    left, top, right, bottom = font.getbbox(text)
+    width, height = int(right - left), int(bottom - top)
+    return width, height
