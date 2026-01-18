@@ -158,6 +158,7 @@ class NetatmoService:
             self.get_new_token_info()
 
     def check_location(self):
+        """Extracts the longitude, latitude and altitude from the station data"""
         if 'location' in self.data['body']['devices'][0]['place']:
                 location = self.data['body']['devices'][0]['place']['location']
                 altitude = self.data['body']['devices'][0]['place']['altitude']
