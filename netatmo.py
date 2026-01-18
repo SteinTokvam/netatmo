@@ -26,12 +26,8 @@ g_config = dict()
 g_token = dict()
 g_data = dict()
 
-def get_new_token():
+def get_new_token_info():
     """Instruct the user to authenticate on the dev portal and get a new token."""
-    if not os.path.isfile(token_filename):
-        g_token = {"access_token": "xxxx", "refresh_token": "xxxx"}
-        utils.write_json(g_token, token_filename)
-
     netatmoLogger.error('_______________________________________________________')
     netatmoLogger.error("Please generate a new access token, edit %s,", token_filename)
     netatmoLogger.error("and try again.")
@@ -73,7 +69,7 @@ def refresh_token():
         netatmoLogger.warning("refresh_token() HTTPError")
         netatmoLogger.warning("%d %s", e.response.status_code, e.response.text)
         netatmoLogger.warning("refresh_token() failed. Need a new access token.")
-        get_new_token()
+        get_new_token_info()
         return
     except requests.exceptions.RequestException:
         netatmoLogger.error("refresh_token() RequestException", exc_info=1)
@@ -155,32 +151,40 @@ def updater_thread():
         display.main()
         time.sleep(600)  # Sleep for 10 min
 
-def startNetatmoService():
+def start_netatmo_service():
     """Main function"""
     global g_token
     global g_config
     global g_data
 
+    # check directories
+    if not os.path.isdir("config"):
+        os.mkdir("config")
+    if not os.path.isdir("data"):
+        os.mkdir("data")
+
     # read config
     if os.path.isfile(config_filename):
         g_config = utils.read_json(config_filename)
+        if g_config['client_id'] == 'xxxx' or g_config['client_secret'] == 'xxxx' or g_config['device_id'] == 'xxxx':
+            netatmoLogger.error("main() error:")
+            netatmoLogger.error("Please edit %s and try again.", config_filename)
+            sys.exit(1)
     else:
         g_config = {'client_id': 'xxxx', 'client_secret': 'xxxx', 'device_id': 'xxxx'}
         utils.write_json(g_config, config_filename)
         netatmoLogger.error("main() error:")
-        netatmoLogger.error("Config file not found: creating an empty one.")
         netatmoLogger.error("Please edit %s and try again.", config_filename)
-        return
 
     # read last token    
     if os.path.isfile(token_filename):
         g_token = utils.read_json(token_filename)
     else:
-        #authenticate()
-        netatmoLogger.error("main() error:")
-        netatmoLogger.error("Token file not found: creating an empty one.")
-        get_new_token()
-        return
+        g_token = {"access_token": "xxxx", "refresh_token": "xxxx"}
+        utils.write_json(g_token, token_filename)
+        get_new_token_info()
+
+    print("Starting NetAtmo service...")
 
     # read last data
     if os.path.isfile(data_filename):
@@ -189,4 +193,4 @@ def startNetatmoService():
     updater_thread()
 
 if __name__ == '__main__':
-    startNetatmoService()
+    start_netatmo_service()

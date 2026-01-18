@@ -92,7 +92,7 @@ def main():
     serverLogger.info("Starting server...")
 
     # Start netatmo service in background thread
-    netatmo_thread = threading.Thread(target=netatmo.startNetatmoService, daemon=True)
+    netatmo_thread = threading.Thread(target=netatmo.start_netatmo_service, daemon=True)
     netatmo_thread.start()
     serverLogger.info("Netatmo service started.")
 
