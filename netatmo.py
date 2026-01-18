@@ -14,6 +14,8 @@ import time
 import requests
 
 import display
+import formatters
+import reader
 import utils
 import weather
 
@@ -35,12 +37,13 @@ REFRESH_TIME_DEFAULT = 600   # default 10 minutes
 
 
 class NetatmoService:
-    """Service for managing Netatmo weather station data."""  # Add docstring
+    """Service for managing Netatmo weather station data."""
     
     def __init__(self):
-        self.config = {}  # Instead of dict()
-        self.token = {}   # Instead of dict()
-        self.data = {}    # Instead of dict()
+        self.config = {}
+        self.token = {}
+        self.data = {}
+        self.reader = reader.DataReader(DATA_FILENAME)
 
     def get_new_token_info(self):
         """Instruct the user to authenticate on the dev portal and get a new token."""
@@ -109,30 +112,7 @@ class NetatmoService:
             self.data = response.json()
             utils.write_json(self.data, DATA_FILENAME)
 
-            if 'location' in self.data['body']['devices'][0]['place']:
-                location = self.data['body']['devices'][0]['place']['location']
-                altitude = self.data['body']['devices'][0]['place']['altitude']
-                if 'location' not in self.config:  # Fixed typo: was 'location '
-                    self.config['location'] = {}
-                
-                # Break up the long conditional
-                location_changed = (
-                    'longitude' not in self.config['location']
-                    or self.config['location']['longitude'] != location[0]
-                    or self.config['location']['latitude'] != location[1]
-                    or self.config['location']['altitude'] != altitude
-                )
-                
-                if location_changed:
-                    self.config['location']['longitude'] = location[0]
-                    self.config['location']['latitude'] = location[1]
-                    self.config['location']['altitude'] = altitude
-                    utils.write_json(self.config, CONFIG_FILENAME)
-                    netatmoLogger.warning(
-                        "Station location updated in config.json: lon %f lat %f",
-                        self.config['location']['longitude'],
-                        self.config['location']['latitude']
-                    )
+            self.check_location()
 
         except requests.exceptions.HTTPError as e:
             netatmoLogger.warning("get_station_data() HTTPError")
@@ -145,83 +125,6 @@ class NetatmoService:
                 self.get_station_data()
         except requests.exceptions.RequestException:
             netatmoLogger.error("get_station_data() RequestException:", exc_info=1)
-
-    def display_console(self):
-        """Displays weather data on the console. Input: self.data"""
-        if "body" not in self.data:
-            netatmoLogger.info("No data")
-            return
-        
-        parts = [f"Time {utils.timestr(self.data['time_server'])}"]
-        device = self.data["body"]["devices"][0]
-        
-        # Add device data
-        parts.extend(self._format_device_data(device))
-        
-        # Add module data
-        for module in device.get("modules", []):
-            parts.extend(self._format_module_data(module))
-        
-        netatmoLogger.info(" | ".join(parts))
-
-    def _format_device_data(self, device):
-        """Format main device sensor data."""
-        parts = []
-        dashboard = device.get("dashboard_data", {})
-        
-        if "Pressure" in dashboard:
-            parts.append(f"Pressure {dashboard['Pressure']}")
-        if "Temperature" in dashboard:
-            parts.append(f"Indoor {dashboard['Temperature']}")
-        
-        return parts
-
-    def _format_module_data(self, module):
-        """Format module sensor data based on module type."""
-        if "dashboard_data" not in module:
-            return []
-        
-        module_type = module["type"]
-        dashboard = module["dashboard_data"]
-        
-        formatters = {
-            "NAModule1": self._format_outdoor,
-            "NAModule2": self._format_wind,
-            "NAModule3": self._format_rain,
-            "NAModule4": self._format_optional_indoor,
-        }
-        
-        formatter = formatters.get(module_type)
-        return formatter(module, dashboard) if formatter else []
-
-    def _format_outdoor(self, module, dashboard):
-        """Format outdoor module data."""
-        if "Temperature" in dashboard:
-            return [f"Outdoor {dashboard['Temperature']}"]
-        return []
-
-    def _format_wind(self, module, dashboard):
-        """Format wind gauge data."""
-        parts = []
-        if "WindStrength" in dashboard:
-            wind_str = f"Wind {dashboard['WindStrength']}"
-            if "WindAngle" in dashboard:
-                wind_str += f" angle {dashboard['WindAngle']}"
-            parts.append(wind_str)
-        return parts
-
-    def _format_rain(self, module, dashboard):
-        """Format rain gauge data."""
-        if "Rain" in dashboard:
-            return [f"Rain {dashboard['Rain']}"]
-        return []
-
-    def _format_optional_indoor(self, module, dashboard):
-        """Format optional indoor module data."""
-        module_name = module.get("module_name", "Opt Indoor")
-        if "Temperature" in dashboard:
-            return [f"{module_name} {dashboard['Temperature']}"]
-        return []
 
     def check_config(self):
         """Check configuration validity"""
@@ -254,6 +157,32 @@ class NetatmoService:
             utils.write_json(self.token, TOKEN_FILENAME)
             self.get_new_token_info()
 
+    def check_location(self):
+        if 'location' in self.data['body']['devices'][0]['place']:
+                location = self.data['body']['devices'][0]['place']['location']
+                altitude = self.data['body']['devices'][0]['place']['altitude']
+                if 'location' not in self.config:  # Fixed typo: was 'location '
+                    self.config['location'] = {}
+                
+                # Break up the long conditional
+                location_changed = (
+                    'longitude' not in self.config['location']
+                    or self.config['location']['longitude'] != location[0]
+                    or self.config['location']['latitude'] != location[1]
+                    or self.config['location']['altitude'] != altitude
+                )
+                
+                if location_changed:
+                    self.config['location']['longitude'] = location[0]
+                    self.config['location']['latitude'] = location[1]
+                    self.config['location']['altitude'] = altitude
+                    utils.write_json(self.config, CONFIG_FILENAME)
+                    netatmoLogger.warning(
+                        "Station location updated in config.json: lon %f lat %f",
+                        self.config['location']['longitude'],
+                        self.config['location']['latitude']
+                    )
+
     def start(self):
         """Main function"""
         self.check_config()
@@ -261,14 +190,22 @@ class NetatmoService:
         print("Starting NetAtmo service...")
         print(self.config['refresh_time'], "seconds refresh time.")
 
-        # read last data
-        if os.path.isfile(DATA_FILENAME):
-            self.data = utils.read_json(DATA_FILENAME)
+        data_reader = reader.DataReader(DATA_FILENAME)
+        console_formatter = formatters.NetatmoConsoleFormatter()
         
+        # read last data
+        if data_reader.exists():
+            self.data = self.reader.read()
+        
+        formatted = data_reader.display(console_formatter)
+       
         while not stop_event.is_set():
             self.get_station_data()
             weather.get_weather_data()
-            self.display_console()
+
+            if formatted:
+                netatmoLogger.info(formatted)
+            
             display.main()
 
             # sleep in small chunks so shutdown is responsive
