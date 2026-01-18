@@ -35,15 +35,6 @@ g_data = dict()
 g_weather_data = dict()
 g_image = None
 
-def read_json(filename):
-    """Read a JSON file to a dict object."""
-    with open(filename, 'r') as f:
-        try:
-            data = json.load(f)
-        except json.decoder.JSONDecodeError:
-            data = dict()
-    return data
-
 def trend_symbol(trend):
     """Unicode symbol for temperature trend"""
     if trend == 'up':
@@ -77,7 +68,7 @@ def draw_image():
 
     # read data
     if os.path.isfile(data_filename):
-        g_data = read_json(data_filename)
+        g_data = utils.read_json(data_filename)
     else:
         displayLogger.error("No data file")
         return
@@ -87,7 +78,7 @@ def draw_image():
     
     # read weather data
     if os.path.isfile(weather_data_filename):
-        g_weather_data = read_json(weather_data_filename)
+        g_weather_data = utils.read_json(weather_data_filename)
     else:
         displayLogger.error("No weather data file")
         return
@@ -99,6 +90,7 @@ def draw_image():
     # see https://dev.netatmo.com/en-US/resources/technical/reference/weather/getstationsdata
     # for details
     user_admin = g_data["body"]["user"]["administrative"]
+    battery_percent = 'Bateria: ' + str(g_data['body']['devices'][0]['modules'][0]['battery_percent']) + ' |' 
     unit_temp = ['°C', '°F'][user_admin["unit"]]
     unit_rain = ['mm/h', 'in/h'][user_admin["unit"]]
     unit_wind = ['kph', 'mph', 'm/s', 'beaufort', 'knot'][user_admin["windunit"]]
@@ -114,7 +106,7 @@ def draw_image():
     rain_str = 'N/A'
     wind_str = 'N/A'
 
-    data_time_str = "Sist oppdatert: " + utils.timestr(g_data["time_server"])
+    data_time_str = "Aktualizowano  : " + utils.timestr(g_data["time_server"])
 
     forecast_now = "N/A"
     forecast_6_hours = "N/A"
@@ -176,6 +168,7 @@ def draw_image():
     (width_outdoor, height_outdoor) = textsize(outdoor_temp_str, font=font_temp)
     (width_rain, height_rain) = textsize(rain_str, font=font_temp)
     (width_time, height_time) = textsize(data_time_str, font=font_time)
+    (width_battery, height_battery) = textsize(battery_percent, font=font_time)
 
     # which is bigger?
     txtwidth, txtheight = width_indoor, height_indoor
@@ -204,21 +197,22 @@ def draw_image():
 
     # temperatures
     draw.text((first_window_x, first_window_y), indoor_temp_str, fill=BLACK, font=font_temp)
-    draw.text((first_window_x, first_window_y + txtheight+5), outdoor_temp_str, fill=BLACK, font = font_temp)
+    draw.text((second_window_x, second_window_y), outdoor_temp_str, fill=BLACK, font = font_temp)
 
     # indoor humidity and CO2
-    draw.text((first_window_x, second_window_y + (4*(txtheight))), indoor_humidity_str + " / " + indoor_co2_str, fill=BLACK, font = font_text)
+    draw.text((second_window_x, second_window_y + (4*(txtheight))), indoor_humidity_str + " / " + indoor_co2_str, fill=BLACK, font = font_text)
 
-    # rain and wind
-    draw.text((second_window_x, second_window_y), rain_str, fill=BLACK, font = font_temp)
-    if wind_str != 'N/A':
-        draw.text((second_window_x, second_window_y + txtheight + 5), wind_str, fill=BLACK, font = font_temp)
+    # # rain and wind
+    # draw.text((second_window_x, second_window_y), rain_str, fill=BLACK, font = font_temp)
+    # if wind_str != 'N/A':
+    #     draw.text((second_window_x, second_window_y + txtheight + 5), wind_str, fill=BLACK, font = font_temp)
     
     # outdoor humidity
-    draw.text((second_window_x, second_window_y + (4*(txtheight))), outdoor_humidity_str, fill=BLACK, font = font_text)
+    # draw.text((second_window_x, second_window_y + (4*(txtheight))), outdoor_humidity_str, fill=BLACK, font = font_text)
 
     # time
     draw.text((width - width_time - 5, 5), data_time_str, fill = BLACK, font = font_time)
+    draw.text((width - width_time - width_battery - 10, 5), battery_percent, fill = BLACK, font = font_time)
 
     # weather forecast
     weather_symbol_0 = Image.open("symbols/" + forecast_now["data"]["next_6_hours"]["summary"]["symbol_code"] + ".png")
