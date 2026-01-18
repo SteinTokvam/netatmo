@@ -16,6 +16,9 @@ import weather
 import threading
 
 netatmoLogger = logging.getLogger(__name__)
+netatmoLogger.setLevel(logging.INFO)
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
+
 stop_event = threading.Event()
 
 # JSON file names
@@ -25,7 +28,7 @@ data_filename = "data/data.json"
 
 # Global variables
 g_config = dict()
-g_config_default = '{"client_id": "xxxx", "client_secret": "xxxx", "device_id": "xxxx", "refresh_time": 600}'
+g_config_default = '{"client_id": "xxxx", "client_secret": "xxxx", "device_id": "xxxx", "refresh_time": 600}, "location": {"longitude": 0.0, "latitude": 0.0, "altitude": 0}}'
 g_token = dict()
 g_token_default = '{"access_token": "xxxx", "refresh_token": "xxxx"}'
 g_data = dict()
@@ -92,7 +95,20 @@ def get_station_data():
         netatmoLogger.debug("%d %s", response.status_code, response.text)
         response.raise_for_status()
         g_data = response.json()
-        utils.write_json(g_data, data_filename)    
+        utils.write_json(g_data, data_filename)
+
+        if 'location' in g_data['body']['devices'][0]['place']:
+            location = g_data['body']['devices'][0]['place']['location']
+            altitude = g_data['body']['devices'][0]['place']['altitude']
+            if 'location ' not in g_config:
+                g_config['location'] = dict()
+            if 'longitude' not in g_config['location'] or g_config['location']['longitude'] != location[0] or g_config['location']['latitude'] != location[1] or g_config['location']['altitude'] != altitude:
+                g_config['location']['longitude'] = location[0]
+                g_config['location']['latitude'] = location[1]
+                g_config['location']['altitude'] = altitude
+                utils.write_json(g_config, config_filename)
+                netatmoLogger.warning("Station location updated in config.json: lon %f lat %f", g_config['location']['longitude'], g_config['location']['latitude'])
+
     except requests.exceptions.HTTPError as e:
         netatmoLogger.warning("get_station_data() HTTPError")
         netatmoLogger.warning("%d %s", e.response.status_code, e.response.text)

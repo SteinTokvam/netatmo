@@ -6,19 +6,29 @@ import time
 import logging
 
 weatherLogger = logging.getLogger(__name__)
+weatherLogger.setLevel(logging.INFO)
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
 
 weather_data_filename = "data/weather_data.json"
+config_filename = "config/config.json"
+g_config = dict()
+
+
 
 def get_weather_data():
     """Gets weather data from met.no API. Result: weather_data.json file."""
     
     global weather_data_filename
+    global config_filename
+
+    g_config = utils.read_json(config_filename)
 
     params = {
-        'altitude': '353',
-        'lat': '60.70833400000004',
-        'lon': '10.611503000000067'
+        'altitude': g_config['location']['altitude'],
+        'lat': g_config['location']['latitude'],
+        'lon': g_config['location']['longitude']
     }
+
     try:
         response = requests.get("https://api.met.no/weatherapi/locationforecast/2.0/complete", params=params, headers={"User-Agent": "netatmo-weather-app/1.0"})
         weatherLogger.debug("%d %s", response.status_code, response.text)
