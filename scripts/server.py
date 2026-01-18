@@ -2,11 +2,12 @@ import http.server
 import socketserver
 import json
 import threading
-import netatmo
-import weather
 import logging
 import os 
-import utils
+from src import utils
+from src import netatmo
+from src import weather
+
 
 logging.basicConfig()
 logging.root.setLevel(logging.INFO)
