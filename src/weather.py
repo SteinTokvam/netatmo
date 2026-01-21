@@ -3,6 +3,7 @@
 import time
 import os
 import logging
+import threading
 import requests
 import utils
 
@@ -17,44 +18,91 @@ weatherLogger = logging.getLogger(__name__)
 weatherLogger.setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
 
-weather_data_filename = os.path.join(DATA_DIR, "weather_data.json")
-config_filename = os.path.join(CONFIG_DIR, "config.json")
-g_config = dict()
 
-
-
-def get_weather_data():
-    """Gets weather data from met.no API. Result: weather_data.json file."""
+class WeatherService:
+    """Service for fetching weather data from met.no API."""
     
-    global weather_data_filename
-    global config_filename
+    def __init__(self, config_filename=None, weather_data_filename=None):
+        """Initialize the weather service.
+        
+        Args:
+            config_filename: Path to config JSON file
+            weather_data_filename: Path to output weather data JSON file
+        """
+        self.config_filename = config_filename or os.path.join(CONFIG_DIR, "config.json")
+        self.weather_data_filename = weather_data_filename or os.path.join(DATA_DIR, "weather_data.json")
+        self.config = {}
+        self.stop_event = threading.Event()
+        self.thread = None
+    
+    def load_config(self):
+        """Load configuration from file."""
+        self.config = utils.read_json(self.config_filename)
+    
+    def get_weather_data(self):
+        """Gets weather data from met.no API. Result: weather_data.json file."""
+        self.load_config()
+        
+        params = {
+            'altitude': self.config['location']['altitude'],
+            'lat': self.config['location']['latitude'],
+            'lon': self.config['location']['longitude']
+        }
 
-    g_config = utils.read_json(config_filename)
-
-    params = {
-        'altitude': g_config['location']['altitude'],
-        'lat': g_config['location']['latitude'],
-        'lon': g_config['location']['longitude']
-    }
-
-    try:
-        response = requests.get("https://api.met.no/weatherapi/locationforecast/2.0/complete", params=params, headers={"User-Agent": "netatmo-weather-app/1.0"})
-        weatherLogger.debug("%d %s", response.status_code, response.text)
-        response.raise_for_status()
-        weather_data = response.json()
-        utils.write_json(weather_data, weather_data_filename)    
-    except requests.exceptions.HTTPError as e:
-        weatherLogger.warning("get_weather_data() HTTPError")
-        weatherLogger.warning("%d %s", e.response.status_code, e.response.text)
-    except requests.exceptions.RequestException:
-        weatherLogger.error("get_weather_data() RequestException:", exc_info=1)
-
-def startWeatherService():
-    """Starts periodic weather data retrieval."""
-    while True:
-        weatherLogger.info("Fetching new weather data.")
-        get_weather_data()
-        time.sleep(60*60)  # Sleep for 60 min
+        try:
+            response = requests.get(
+                "https://api.met.no/weatherapi/locationforecast/2.0/complete",
+                params=params,
+                headers={"User-Agent": "netatmo-weather-app/1.0"},
+                timeout=30
+            )
+            weatherLogger.debug("%d %s", response.status_code, response.text)
+            response.raise_for_status()
+            weather_data = response.json()
+            utils.write_json(weather_data, self.weather_data_filename)    
+        except requests.exceptions.HTTPError as e:
+            weatherLogger.warning("get_weather_data() HTTPError")
+            weatherLogger.warning("%d %s", e.response.status_code, e.response.text)
+        except requests.exceptions.RequestException:
+            weatherLogger.error("get_weather_data() RequestException:", exc_info=1)
+    
+    def start(self):
+        """Starts periodic weather data retrieval in a background thread."""
+        if self.thread is not None and self.thread.is_alive():
+            weatherLogger.warning("Weather service is already running")
+            return
+        
+        self.stop_event.clear()
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+        weatherLogger.info("Weather service started in background")
+    
+    def stop(self):
+        """Stops the weather data retrieval service."""
+        if self.thread is None or not self.thread.is_alive():
+            return
+        
+        weatherLogger.info("Stopping weather service...")
+        self.stop_event.set()
+        self.thread.join(timeout=5)
+        weatherLogger.info("Weather service stopped")
+    
+    def _run(self):
+        """Internal method that runs in the background thread."""
+        while not self.stop_event.is_set():
+            try:
+                weatherLogger.info("Fetching new weather data.")
+                self.get_weather_data()
+            except Exception as e:
+                weatherLogger.error("Error in weather service: %s", e, exc_info=True)
+            
+            # Sleep in small chunks so stop is responsive
+            for _ in range(60 * 60):  # 60 minutes in seconds
+                if self.stop_event.is_set():
+                    break
+                time.sleep(1)
+                weatherLogger.info("Weather service sleeping...")
 
 if __name__ == '__main__':
-    startWeatherService()
+    service = WeatherService()
+    service.start()

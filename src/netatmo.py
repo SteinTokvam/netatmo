@@ -63,6 +63,7 @@ class NetatmoService:
         self.token = {}
         self.data = {}
         self.reader = reader.DataReader(DATA_FILENAME)
+        self.weather_service = weather.WeatherService()
 
     def get_new_token_info(self):
         """Instruct the user to authenticate on the dev portal and get a new token."""
@@ -218,22 +219,32 @@ class NetatmoService:
             self.data = self.reader.read()
         
         formatted = data_reader.display(console_formatter)
+        
+        # Start weather service in background thread
+        self.weather_service.start()
        
-        while not stop_event.is_set():
-            self.get_station_data()
-            weather.get_weather_data()
+        try:
+            while not stop_event.is_set():
+                self.get_station_data()
 
-            if formatted:
-                netatmoLogger.info(formatted)
+                if formatted:
+                    netatmoLogger.info(formatted)
             
-            display.main()
+                display.main()
 
+                # sleep in small chunks so shutdown is responsive
+                for _ in range(self.config['refresh_time']):
+                    if stop_event.is_set():
+                        break
+                    time.sleep(1)
+        finally:
+            # Stop weather service on exit
+            self.weather_service.stop()
             # sleep in small chunks so shutdown is responsive
             for _ in range(self.config['refresh_time']):
                 if stop_event.is_set():
                     break
                 time.sleep(1)
-
 
 if __name__ == '__main__':
     service = NetatmoService()
