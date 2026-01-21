@@ -8,5 +8,6 @@ custom*
 .vscode/
 .DS_Store
 
-/__pycache__
-/src/__pycache__
+__pycache__
+./src/__pycache__
+*.pyc
