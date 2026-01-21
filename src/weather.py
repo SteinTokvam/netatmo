@@ -101,7 +101,6 @@ class WeatherService:
                 if self.stop_event.is_set():
                     break
                 time.sleep(1)
-                weatherLogger.info("Weather service sleeping...")
 
 if __name__ == '__main__':
     service = WeatherService()
