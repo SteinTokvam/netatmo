@@ -11,14 +11,14 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY netatmo.py ./
-COPY utils.py ./
-COPY weather.py ./
-COPY display.py ./
-COPY server.py ./
+COPY src/netatmo.py ./src/
+COPY src/utils.py ./src/
+COPY src/weather.py ./src/
+COPY src/display.py ./src/
+COPY scripts/server.py ./scripts/
 
 # copy font
 COPY free-sans.ttf ./
 
 # Set default command (adjust as needed)
-CMD ["python", "server.py"]
+CMD ["python", "scripts/server.py"]
