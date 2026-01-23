@@ -1,4 +1,4 @@
-# https://api.met.no/weatherapi/locationforecast/2.0/compact?altitude=353&lat=60.70833400000004&lon=10.611503000000067
+# https://api.met.no/weatherapi/locationforecast/2.0/compact?altitude=353&lat=xx.xx&lon=yy.yy
 
 import time
 import os
@@ -19,7 +19,7 @@ weatherLogger.setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-class WeatherService:
+class WeatherServiceMetNo:
     """Service for fetching weather data from met.no API."""
     
     def __init__(self, config_filename=None, weather_data_filename=None):
@@ -45,8 +45,8 @@ class WeatherService:
         
         params = {
             'altitude': self.config['location']['altitude'],
-            'lat': self.config['location']['latitude'],
-            'lon': self.config['location']['longitude']
+            'lat': round(self.config['location']['latitude'], 4), # Use 4 decimal places for lat/lon - see https://api.met.no/doc/TermsOfService 
+            'lon': round(self.config['location']['longitude'], 4)
         }
 
         try:
@@ -103,5 +103,5 @@ class WeatherService:
                 time.sleep(1)
 
 if __name__ == '__main__':
-    service = WeatherService()
+    service = WeatherServiceMetNo()
     service.start()

@@ -63,7 +63,7 @@ class NetatmoService:
         self.token = {}
         self.data = {}
         self.reader = reader.DataReader(DATA_FILENAME)
-        self.weather_service = weather.WeatherService()
+        self.weather_service = weather.WeatherServiceMetNo()
 
     def get_new_token_info(self):
         """Instruct the user to authenticate on the dev portal and get a new token."""
@@ -180,29 +180,31 @@ class NetatmoService:
     def check_location(self):
         """Extracts the longitude, latitude and altitude from the station data"""
         if 'location' in self.data['body']['devices'][0]['place']:
-                location = self.data['body']['devices'][0]['place']['location']
-                altitude = self.data['body']['devices'][0]['place']['altitude']
-                if 'location' not in self.config:  # Fixed typo: was 'location '
-                    self.config['location'] = {}
-                
-                # Break up the long conditional
-                location_changed = (
-                    'longitude' not in self.config['location']
-                    or self.config['location']['longitude'] != location[0]
-                    or self.config['location']['latitude'] != location[1]
-                    or self.config['location']['altitude'] != altitude
+            location = self.data['body']['devices'][0]['place']['location']
+            location[0] = round(location[0], 4)  # Use 4 decimal places for lat/lon to avoid overly precise data
+            location[1] = round(location[1], 4)
+            altitude = self.data['body']['devices'][0]['place']['altitude']
+            if 'location' not in self.config:  # Fixed typo: was 'location '
+                self.config['location'] = {}
+            
+            # Break up the long conditional
+            location_changed = (
+                'longitude' not in self.config['location']
+                or self.config['location']['longitude'] != location[0]
+                or self.config['location']['latitude'] != location[1]
+                or self.config['location']['altitude'] != altitude
+            )
+            
+            if location_changed:
+                self.config['location']['longitude'] = location[0]
+                self.config['location']['latitude'] = location[1]
+                self.config['location']['altitude'] = altitude
+                utils.write_json(self.config, CONFIG_FILENAME)
+                netatmoLogger.warning(
+                    "Station location updated in config.json: lon %f lat %f",
+                    self.config['location']['longitude'],
+                    self.config['location']['latitude']
                 )
-                
-                if location_changed:
-                    self.config['location']['longitude'] = location[0]
-                    self.config['location']['latitude'] = location[1]
-                    self.config['location']['altitude'] = altitude
-                    utils.write_json(self.config, CONFIG_FILENAME)
-                    netatmoLogger.warning(
-                        "Station location updated in config.json: lon %f lat %f",
-                        self.config['location']['longitude'],
-                        self.config['location']['latitude']
-                    )
 
     def start(self):
         """Main function"""
