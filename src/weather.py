@@ -59,13 +59,13 @@ class WeatherServiceMetNo:
             weatherLogger.debug("%d %s", response.status_code, response.text)
             response.raise_for_status()
             weather_data = response.json()
-            utils.write_json(weather_data, self.weather_data_filename)    
+            utils.write_json(weather_data, self.weather_data_filename)
         except requests.exceptions.HTTPError as e:
             weatherLogger.warning("get_weather_data() HTTPError")
             weatherLogger.warning("%d %s", e.response.status_code, e.response.text)
         except requests.exceptions.RequestException:
             weatherLogger.error("get_weather_data() RequestException:", exc_info=1)
-    
+        
     def start(self):
         """Starts periodic weather data retrieval in a background thread."""
         if self.thread is not None and self.thread.is_alive():
