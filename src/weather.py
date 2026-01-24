@@ -31,18 +31,13 @@ class WeatherServiceMetNo:
         """
         self.config_filename = config_filename or os.path.join(CONFIG_DIR, "config.json")
         self.weather_data_filename = weather_data_filename or os.path.join(DATA_DIR, "weather_data.json")
-        self.config = {}
+        self.config = utils.read_json(self.config_filename)
         self.stop_event = threading.Event()
         self.thread = None
     
-    def load_config(self):
-        """Load configuration from file."""
-        self.config = utils.read_json(self.config_filename)
-    
     def get_weather_data(self):
         """Gets weather data from met.no API. Result: weather_data.json file."""
-        self.load_config()
-        
+                
         params = {
             'altitude': self.config['location']['altitude'],
             'lat': round(self.config['location']['latitude'], 4), # Use 4 decimal places for lat/lon - see https://api.met.no/doc/TermsOfService 
@@ -53,9 +48,10 @@ class WeatherServiceMetNo:
             response = requests.get(
                 "https://api.met.no/weatherapi/locationforecast/2.0/complete",
                 params=params,
-                headers={"User-Agent": "netatmo-weather-app/1.0"},
+                headers={"User-Agent": "wgmv-weather/1.0"},
                 timeout=30
             )
+            
             weatherLogger.debug("%d %s", response.status_code, response.text)
             response.raise_for_status()
             weather_data = response.json()
