@@ -391,41 +391,125 @@ class WeatherDisplay:
         draw.line((mid_x, 2, mid_x, mid_y), fill=BLACK, width=2)
         draw.line((2, mid_y, width - 2, mid_y), fill=BLACK, width=2)
 
-        # Bottom window divisions (5 equal sections)
-        for i in range(1, 5):
-            x = i * width // 4
-            draw.line((x, mid_y, x, height - 2), fill=BLACK, width=2)
+        # # Bottom window divisions (5 equal sections)
+        # for i in range(1, 5):
+        #     x = i * width // 4
+        #     draw.line((x, mid_y, x, height - 2), fill=BLACK, width=2)
     
     def _draw_forecast(self, forecast_data, bottom_window_x, bottom_window_y, width, font_text):
-        """Draw weather forecast section
+        """Draw weather forecast section as a temperature curve graph
         
         Args:
-            forecast_data: List of forecast dictionaries
+            forecast_data: List of forecast dictionaries with hourly data
             bottom_window_x: X position of bottom window
-            bottom_window_y: Y position of bottom window
+            bottom_window_y: Y position of bottom window (not used, kept for compatibility)
             width: Image width
             font_text: Font for text
         """
         draw = ImageDraw.Draw(self.image)
         
+        if not forecast_data or len(forecast_data) < 2:
+            return
+        
+        # Graph dimensions and positioning
+        graph_left = 50
+        graph_right = width - 50
+        graph_top = self.image_height // 2 + 20
+        graph_bottom = self.image_height - 80
+        graph_width = graph_right - graph_left
+        graph_height = graph_bottom - graph_top
+        
+        # Extract temperatures for scaling
+        temps = [f['temp'] for f in forecast_data]
+        min_temp = min(temps)
+        max_temp = max(temps)
+        temp_range = max_temp - min_temp if max_temp != min_temp else 10
+        
+        # Add padding to temperature range (10% on each side)
+        temp_padding = temp_range * 0.1
+        min_temp -= temp_padding
+        max_temp += temp_padding
+        temp_range = max_temp - min_temp
+        
+        # Calculate x position for each hour
+        hours_shown = len(forecast_data)
+        x_step = graph_width / (hours_shown - 1) if hours_shown > 1 else graph_width
+        
+        # Helper function to convert temp to y coordinate
+        def temp_to_y(temp):
+            # Invert y axis (higher temp = lower y)
+            normalized = (temp - min_temp) / temp_range
+            return int(graph_bottom - (normalized * graph_height))
+        
+        # Helper function to convert hour index to x coordinate
+        def hour_to_x(hour_idx):
+            return int(graph_left + (hour_idx * x_step))
+        
+        # Draw temperature curve
+        curve_points = []
         for i, forecast in enumerate(forecast_data):
-            # Load and resize weather symbol
-            symbol_file = f"{forecast['symbol_code']}.png"
-            symbol_path = os.path.join(self.symbols_dir, symbol_file)
+            x = hour_to_x(i)
+            y = temp_to_y(forecast['temp'])
+            curve_points.append((x, y))
+        
+        # Draw the curve line
+        if len(curve_points) > 1:
+            draw.line(curve_points, fill=BLACK, width=3)
+        
+        # Draw markers and labels
+        font_small = ImageFont.truetype(DEFAULT_FONT_FILE, 18)
+        font_tiny = ImageFont.truetype(DEFAULT_FONT_FILE, 12)
+        
+        for i, forecast in enumerate(forecast_data):
+            x = hour_to_x(i)
+            y = temp_to_y(forecast['temp'])
             
-            if os.path.isfile(symbol_path):
-                symbol = Image.open(symbol_path).resize(WEATHER_SYMBOL_SIZE)
-                x_symbol = 60 + i * 240
-                self.image.paste(symbol, (x_symbol, 300), mask=symbol)
+            # Mark every 3 hours on x-axis
+            if i % 3 == 0:
+                # Draw tick mark
+                draw.line([(x, graph_bottom), (x, graph_bottom + 5)], fill=BLACK, width=2)
+                
+                # Draw hour label
+                time_obj = datetime.fromisoformat(forecast['time'])
+                hour_str = time_obj.strftime('%H:%M')
+                text_bbox = draw.textbbox((0, 0), hour_str, font=font_tiny)
+                text_width = text_bbox[2] - text_bbox[0]
+                draw.text((x - text_width // 2, graph_bottom + 8), hour_str, fill=BLACK, font=font_tiny)
             
-            # Draw time and temperature
-            x_text = bottom_window_x + i * (width // 4)
-            time_str = utils.format_time_str(forecast['time'])
-            draw.text((x_text, bottom_window_y), time_str, fill=BLACK, font=font_text)
-            
-            temp = forecast['temp']
-            temp_str = f"{temp:.1f}{self.units['temp']}"
-            draw.text((x_text, bottom_window_y + 30), temp_str, fill=BLACK, font=font_text)
+            # Label every 6 hours with temp and weather symbol
+            if i % 6 == 0:
+                # Draw point on curve
+                draw.ellipse([(x - 4, y - 4), (x + 4, y + 4)], fill=BLACK, outline=BLACK)
+                
+                # Draw temperature label
+                temp_str = f"{forecast['temp']:.1f}{self.units['temp']}"
+                text_bbox = draw.textbbox((0, 0), temp_str, font=font_small)
+                text_width = text_bbox[2] - text_bbox[0]
+                text_height = text_bbox[3] - text_bbox[1]
+                
+                # Position text above or below point depending on space
+                label_y = y - text_height - 8 if y > graph_top + 60 else y + 8
+                draw.text((x - text_width // 2, label_y), temp_str, fill=BLACK, font=font_small)
+                
+                # Load and draw weather symbol
+                symbol_file = f"{forecast['symbol_code']}.png"
+                symbol_path = os.path.join(self.symbols_dir, symbol_file)
+                
+                if os.path.isfile(symbol_path):
+                    symbol_size = (50, 50)
+                    symbol = Image.open(symbol_path).resize(symbol_size)
+                    
+                    # Position symbol above the temperature label
+                    symbol_x = x - symbol_size[0] // 2
+                    symbol_y = label_y - symbol_size[1] - 5 if label_y < y else label_y + text_height + 5
+                    
+                    # Ensure symbol stays within bounds
+                    symbol_y = max(graph_top - 50, min(symbol_y, graph_bottom - symbol_size[1]))
+                    
+                    self.image.paste(symbol, (symbol_x, symbol_y), mask=symbol)
+        
+        # Draw graph border
+        # draw.rectangle([(graph_left, graph_top), (graph_right, graph_bottom)], outline=BLACK, width=2)
     
     
     def _init_screen(self):
