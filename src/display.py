@@ -380,8 +380,6 @@ class WeatherDisplay:
         # Draw temperature
         draw.text((right_x, top_y), outdoor_temp_str, fill=BLACK, font=font_temp)
         
-    def _draw_outdoor_data(self, outdoor_data, right_x, top_y, font_temp):
-        1
     def _get_forecast_data(self):
         """Extract weather forecast data from instant section for each hour.
         
