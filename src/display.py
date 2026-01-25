@@ -64,6 +64,8 @@ WHITE = 1
 BLACK = 0
 RED = 2
 
+CELSIUS_TO_KELVIN = 273.15
+
 DEFAULT_FONT_FILE = os.path.join(BASE_DIR, 'assets', 'fonts', 'free-sans.ttf')
 
 DEFAULT_DATA_FILENAME = os.path.join(BASE_DIR, 'data', 'data.json')
@@ -219,8 +221,9 @@ class WeatherDisplay:
         indoor_data = self._get_indoor_data()
         outdoor_data = self._get_outdoor_data()
         
-        # Get weather forecast data
-        forecast_data = self._get_forecast_data()
+        # Get weather forecast data (normalized with current outdoor temperature)
+        current_temp = outdoor_data.get('temperature') if outdoor_data else None
+        forecast_data = self._get_forecast_data(current_temp)
 
         # Calculate window positions
         left_x = width // 8
@@ -380,8 +383,14 @@ class WeatherDisplay:
         # Draw temperature
         draw.text((right_x, top_y), outdoor_temp_str, fill=BLACK, font=font_temp)
         
-    def _get_forecast_data(self):
+    def _get_forecast_data(self, current_outdoor_temp=None):
         """Extract weather forecast data from instant section for each hour.
+        
+        Normalizes forecast temperatures based on current outdoor measurement to correct
+        for forecast bias.
+        
+        Args:
+            current_outdoor_temp: Current measured outdoor temperature for normalization
         
         Returns:
             list: List of forecast dictionaries with hourly temperature and 6-hour symbols
@@ -395,6 +404,29 @@ class WeatherDisplay:
         
         forecast_data = []
         
+        # Calculate temperature offset for normalization (as percentage)
+        # Use Kelvin scale to avoid zero-crossing issues
+        
+        percent_offset = 0
+        forecast_error = 0
+        
+        if current_outdoor_temp is not None and len(timeseries) > 0:
+            # Get the first forecast temperature (current hour)
+            first_forecast_temp = timeseries[0]["data"]["instant"]["details"].get("air_temperature", 0)
+            forecast_error = current_outdoor_temp - first_forecast_temp
+            
+            # Convert to Kelvin for percentage calculation
+            current_kelvin = current_outdoor_temp + CELSIUS_TO_KELVIN
+            forecast_kelvin = first_forecast_temp + CELSIUS_TO_KELVIN
+            
+            # Calculate percentage offset on absolute scale
+            percent_offset = (current_kelvin - forecast_kelvin) / forecast_kelvin
+            
+            displayLogger.info("Normalizing forecast: current=%.1f°C, forecast=%.1f°C, "
+                             "error=%+.1f°C, offset=%+.2f%%",
+                             current_outdoor_temp, first_forecast_temp, 
+                             forecast_error, percent_offset * 100)
+        
        
         for index in range(0,24):
             if index >= len(timeseries):
@@ -405,6 +437,15 @@ class WeatherDisplay:
             # Get temperature from instant section (current hour)
             instant_details = forecast["data"]["instant"]["details"]
             temp = instant_details.get("air_temperature", 0)
+            
+            # Apply normalization offset (percentage-based using Kelvin scale)
+            if percent_offset != 0:
+                temp_kelvin = temp + CELSIUS_TO_KELVIN
+                normalized_kelvin = temp_kelvin * (1 + percent_offset)
+                normalized_temp = normalized_kelvin - CELSIUS_TO_KELVIN
+            else:
+                normalized_temp = temp
+
             
             # Get weather symbol from 3-hour forecast if available, fallback to 1-hour
             symbol_code = None
@@ -421,7 +462,9 @@ class WeatherDisplay:
                 forecast_data.append({
                     'time': local_time.isoformat(),
                     'symbol_code': symbol_code,
-                    'temp': temp
+                    'temp': normalized_temp,
+                    'original_temp': temp,
+                    'error': forecast_error if index == 0 else None
                 })
 
         return forecast_data
