@@ -86,6 +86,14 @@ TREND_SYMBOLS = {
 
 WEATHER_SYMBOL_SIZE = (100, 100)
 
+# Unit options based on Netatmo API settings
+UNIT_OPTIONS = {
+    'temperature': ['°C', '°F'],
+    'rain': ['mm/h', 'in/h'],
+    'wind': ['kph', 'mph', 'm/s', 'beaufort', 'knot'],
+    'pressure': ['mbar', 'inHg', 'mmHg']
+}
+
 displayLogger = logging.getLogger(__name__)
 
 
@@ -119,6 +127,7 @@ class WeatherDisplay:
         self.image_height = image_height
         self.screen_type = screen_type
         self.epd = None
+        self.units = {}  # Will be populated when data is loaded
 
         #Check/create symbols directory
         if not os.path.isfile(data_filename):
@@ -168,6 +177,23 @@ class WeatherDisplay:
         
         return True
     
+    def _get_units(self):
+        """Extract units from user settings.
+        
+        Returns:
+            dict: Dictionary with unit strings for different measurements
+        """
+        user_admin = self.data["body"]["user"]["administrative"]
+        
+        return {
+            'temp': UNIT_OPTIONS['temperature'][user_admin["unit"]],
+            'rain': UNIT_OPTIONS['rain'][user_admin["unit"]],
+            'wind': UNIT_OPTIONS['wind'][user_admin["windunit"]],
+            'pressure': UNIT_OPTIONS['pressure'][user_admin.get("pressureunit", 0)],
+            'humidity': '%',
+            'co2': 'ppm'
+        }
+    
     def draw_image(self):
         """Draw the weather display image"""
         # Load data
@@ -184,20 +210,15 @@ class WeatherDisplay:
         font_time = ImageFont.truetype(DEFAULT_FONT_FILE, FONT_SIZE_TIME)
 
         # Get units from user settings
-        user_admin = self.data["body"]["user"]["administrative"]
-        unit_temp = ['°C', '°F'][user_admin["unit"]]
-        unit_rain = ['mm/h', 'in/h'][user_admin["unit"]]
-        unit_wind = ['kph', 'mph', 'm/s', 'beaufort', 'knot'][user_admin["windunit"]]
-        unit_humidity = '%'
-        unit_co2 = 'ppm'
+        self.units = self._get_units()
 
         # Battery percentage
         battery = self.data['body']['devices'][0]['modules'][0]['battery_percent']
         battery_percent = f'Bateria: {battery} |'
 
         # Extract and format sensor values
-        indoor_temp_str, indoor_humidity_str, indoor_co2_str = self._get_indoor_data(unit_temp, unit_humidity, unit_co2)
-        outdoor_temp_str, outdoor_humidity_str, rain_str, wind_str = self._get_outdoor_data(unit_temp, unit_humidity, unit_rain, unit_wind)
+        indoor_temp_str, indoor_humidity_str, indoor_co2_str = self._get_indoor_data()
+        outdoor_temp_str, outdoor_humidity_str, rain_str, wind_str = self._get_outdoor_data()
         
         data_time_str = f"Aktualizowano  : {utils.timestr(self.data['time_server'])}"
         
@@ -239,16 +260,11 @@ class WeatherDisplay:
 
         # Draw weather forecast
         if forecast_data:
-            self._draw_forecast(forecast_data, bottom_x, bottom_y, width, unit_temp, font_text)
+            self._draw_forecast(forecast_data, bottom_x, bottom_y, width, font_text)
     
-    def _get_indoor_data(self, unit_temp, unit_humidity, unit_co2):
+    def _get_indoor_data(self):
         """Extract indoor sensor data
         
-        Args:
-            unit_temp: Temperature unit string
-            unit_humidity: Humidity unit string
-            unit_co2: CO2 unit string
-            
         Returns:
             tuple: (temperature_str, humidity_str, co2_str)
         """
@@ -263,27 +279,21 @@ class WeatherDisplay:
             humidity = data["Humidity"]
             co2 = data["CO2"]
             
-            indoor_temp_str = f"{temp:.1f} {unit_temp}"
+            indoor_temp_str = f"{temp:.1f} {self.units['temp']}"
             if "temp_trend" in data:
-                indoor_temp_str += TREND_SYMBOLS[data["temp_trend"]]
+                indoor_temp_str += TREND_SYMBOLS.get(data["temp_trend"], '')
             
-            indoor_humidity_str = f"{humidity:.1f} {unit_humidity}"
+            indoor_humidity_str = f"{humidity:.1f} {self.units['humidity']}"
             
-            indoor_co2_str = f"{co2:.1f} {unit_co2}"
+            indoor_co2_str = f"{co2:.1f} {self.units['co2']}"
             if "pressure_trend" in data:
-                indoor_co2_str += TREND_SYMBOLS[data["pressure_trend"]]
+                indoor_co2_str += TREND_SYMBOLS.get(data["pressure_trend"], '')
         
         return indoor_temp_str, indoor_humidity_str, indoor_co2_str
     
-    def _get_outdoor_data(self, unit_temp, unit_humidity, unit_rain, unit_wind):
+    def _get_outdoor_data(self):
         """Extract outdoor sensor data
         
-        Args:
-            unit_temp: Temperature unit string
-            unit_humidity: Humidity unit string
-            unit_rain: Rain unit string
-            unit_wind: Wind unit string
-            
         Returns:
             tuple: (temperature_str, humidity_str, rain_str, wind_str)
         """
@@ -303,14 +313,14 @@ class WeatherDisplay:
             if module_type == "NAModule1":  # Outdoor Module
                 temp = data["Temperature"]
                 humidity = data["Humidity"]
-                outdoor_temp_str = f"{temp:.1f} {unit_temp}"
+                outdoor_temp_str = f"{temp:.1f} {self.units['temp']}"
                 if "temp_trend" in data:
-                    outdoor_temp_str += TREND_SYMBOLS[data["temp_trend"]]
-                outdoor_humidity_str = f"{humidity:.1f} {unit_humidity}"
+                    outdoor_temp_str += TREND_SYMBOLS.get(data["temp_trend"], '')
+                outdoor_humidity_str = f"{humidity:.1f} {self.units['humidity']}"
                 
             elif module_type == "NAModule2":  # Wind Gauge
                 wind = data.get("WindStrength", 0)
-                wind_str = f"{wind:.1f} {unit_wind}"
+                wind_str = f"{wind:.1f} {self.units['wind']}"
                 
             elif module_type == "NAModule3":  # Rain Gauge
                 rain = data.get("sum_rain_24", 0)
@@ -319,10 +329,10 @@ class WeatherDisplay:
         return outdoor_temp_str, outdoor_humidity_str, rain_str, wind_str
     
     def _get_forecast_data(self):
-        """Extract weather forecast data
+        """Extract weather forecast data from instant section for each hour.
         
         Returns:
-            list: List of forecast dictionaries or None
+            list: List of forecast dictionaries with hourly temperature and 6-hour symbols
         """
         if "properties" not in self.weather_data:
             return None
@@ -332,58 +342,36 @@ class WeatherDisplay:
             return None
         
         forecast_data = []
-        now = datetime.now().astimezone()  # Get current time in local timezone
-
-        # Determine target times based on current hour
-        target_times = []
         
-        if now.hour >= 0 and now.hour < 5:
-            # After midnight: use fixed times for today and tomorrow
-            today = now.replace(hour=5, minute=0, second=0, microsecond=0)
-            target_times.append(today)  # Today 5 AM
-            target_times.append(today.replace(hour=8))  # Today 8 AM
-            tomorrow = today + timedelta(days=1)
-            target_times.append(tomorrow)  # Tomorrow 5 AM
-            target_times.append(tomorrow.replace(hour=8))  # Tomorrow 8 AM
-        else:
-            # During the day: use relative times + tomorrow fixed times
-            target_times.append(now + timedelta(hours=3))  # 3 hours from now
-            target_times.append(now + timedelta(hours=6))  # 6 hours from now
-            tomorrow = (now + timedelta(days=1)).replace(hour=5, minute=0, second=0, microsecond=0)
-            target_times.append(tomorrow)  # Tomorrow 5 AM
-            target_times.append(tomorrow.replace(hour=8))  # Tomorrow 8 AM
-        
-        # Find closest matching forecasts
-        for target_time in target_times:
-            closest_forecast = None
-            min_diff = timedelta(hours=999)
-            
-            for forecast in timeseries:
-                forecast_time = datetime.fromisoformat(forecast["time"].replace('Z', '+00:00'))
-                diff = abs(forecast_time - target_time)
+       
+        for index in range(0,24):
+            if index >= len(timeseries):
+                continue
                 
-                if diff < min_diff:
-                    min_diff = diff
-                    closest_forecast = forecast
+            forecast = timeseries[index]
             
-            if closest_forecast and "next_6_hours" in closest_forecast["data"]:
-                forecast_details = closest_forecast["data"]["next_6_hours"]["details"]
+            # Get temperature from instant section (current hour)
+            instant_details = forecast["data"]["instant"]["details"]
+            temp = instant_details.get("air_temperature", 0)
+            
+            # Get weather symbol from 3-hour forecast if available, fallback to 1-hour
+            symbol_code = None
+            if "next_3_hours" in forecast["data"]:
+                symbol_code = forecast["data"]["next_3_hours"]["summary"]["symbol_code"]
+            elif "next_1_hours" in forecast["data"]:
+                symbol_code = forecast["data"]["next_1_hours"]["summary"]["symbol_code"]
+            
+            if symbol_code:
+                # Convert UTC time to local timezone
+                forecast_time = datetime.fromisoformat(forecast["time"].replace('Z', '+00:00'))
+                local_time = forecast_time.astimezone()
+                
                 forecast_data.append({
-                    'time': closest_forecast["time"],
-                    'symbol_code': closest_forecast["data"]["next_6_hours"]["summary"]["symbol_code"],
-                    'temp_min': forecast_details["air_temperature_min"],
-                    'temp_max': forecast_details["air_temperature_max"]
+                    'time': local_time.isoformat(),
+                    'symbol_code': symbol_code,
+                    'temp': temp
                 })
-            elif closest_forecast and "next_1_hours" in closest_forecast["data"]:
-                # Fallback to next_1_hours if next_6_hours not available
-                instant_details = closest_forecast["data"]["instant"]["details"]
-                forecast_data.append({
-                    'time': closest_forecast["time"],
-                    'symbol_code': closest_forecast["data"]["next_1_hours"]["summary"]["symbol_code"],
-                    'temp_min': instant_details["air_temperature"],
-                    'temp_max': instant_details["air_temperature"]
-                })
-        
+        print(forecast_data)
         return forecast_data
     
     def _draw_layout(self, draw, width, height):
@@ -408,7 +396,7 @@ class WeatherDisplay:
             x = i * width // 4
             draw.line((x, mid_y, x, height - 2), fill=BLACK, width=2)
     
-    def _draw_forecast(self, forecast_data, bottom_window_x, bottom_window_y, width, unit_temp, font_text):
+    def _draw_forecast(self, forecast_data, bottom_window_x, bottom_window_y, width, font_text):
         """Draw weather forecast section
         
         Args:
@@ -416,7 +404,6 @@ class WeatherDisplay:
             bottom_window_x: X position of bottom window
             bottom_window_y: Y position of bottom window
             width: Image width
-            unit_temp: Temperature unit string
             font_text: Font for text
         """
         draw = ImageDraw.Draw(self.image)
@@ -436,9 +423,8 @@ class WeatherDisplay:
             time_str = utils.format_time_str(forecast['time'])
             draw.text((x_text, bottom_window_y), time_str, fill=BLACK, font=font_text)
             
-            temp_min = forecast['temp_min']
-            temp_max = forecast['temp_max']
-            temp_str = f"{temp_min:.1f}{unit_temp} / {temp_max:.1f}{unit_temp}"
+            temp = forecast['temp']
+            temp_str = f"{temp:.1f}{self.units['temp']}"
             draw.text((x_text, bottom_window_y + 30), temp_str, fill=BLACK, font=font_text)
     
     
