@@ -271,7 +271,8 @@ class WeatherDisplay:
             'humidity': data.get("Humidity"),
             'co2': data.get("CO2"),
             'temp_trend': data.get("temp_trend"),
-            'pressure_trend': data.get("pressure_trend")
+            'pressure_trend': data.get("pressure_trend"),
+            'name': device.get("module_name", "Indoor")
         }
     
     def _draw_indoor_data(self, indoor_data, left_x, top_y, font_text, font_temp):
@@ -311,12 +312,17 @@ class WeatherDisplay:
                 indoor_co2_str += TREND_SYMBOLS.get(indoor_data['pressure_trend'], '')
         else:
             indoor_co2_str = 'N/A'
+                    
+        # Calculate text height for positioning
+        (width_temp, height_temp) = utils.textsize(indoor_temp_str, font=font_temp)
+
+        #Draw module name
+        if indoor_data['name']:
+            draw.text((left_x, top_y - height_temp), indoor_data['name'], fill=BLACK, font=font_text)
         
         # Draw temperature
         draw.text((left_x, top_y), indoor_temp_str, fill=BLACK, font=font_temp)
-        
-        # Calculate text height for positioning
-        (width_temp, height_temp) = utils.textsize(indoor_temp_str, font=font_temp)
+
         
         # Draw humidity and CO2
         self._draw_weather_symbol('humidity', left_x - 12, top_y + (3 * height_temp) + 50, top_y + (4 * height_temp), height_temp, top_y, top_y + (3 * height_temp) + 50, symbol_size=(30, 30))
@@ -335,7 +341,8 @@ class WeatherDisplay:
             'humidity': None,
             'temp_trend': None,
             'rain': None,
-            'wind': None
+            'wind': None,
+            'name': None
         }
         
         device = self.data["body"]["devices"][0]
@@ -350,6 +357,7 @@ class WeatherDisplay:
                 outdoor_data['temperature'] = data.get("Temperature")
                 outdoor_data['humidity'] = data.get("Humidity")
                 outdoor_data['temp_trend'] = data.get("temp_trend")
+                outdoor_data['name'] = module['module_name']
                 
             elif module_type == "NAModule2":  # Wind Gauge
                 outdoor_data['wind'] = data.get("WindStrength", 0)
@@ -389,6 +397,10 @@ class WeatherDisplay:
 
         # Calculate text height for positioning
         (width_temp, height_temp) = utils.textsize(outdoor_temp_str, font=font_temp)
+
+        #Draw module name
+        if outdoor_data['name']:
+            draw.text((right_x, top_y - height_temp), outdoor_data['name'], fill=BLACK, font=font_text)
         
         # Draw temperature
         draw.text((right_x, top_y), outdoor_temp_str, fill=BLACK, font=font_temp)
@@ -396,8 +408,7 @@ class WeatherDisplay:
         # Draw humidity
         self._draw_weather_symbol('humidity', right_x + 25, top_y + (3 * height_temp) + 50, top_y + (4 * height_temp), height_temp, top_y, top_y + (3 * height_temp) + 50, symbol_size=(30, 30))
 
-        draw.text((right_x + 37, top_y + (3 * height_temp)+20), 
-                  f" {outdoor_humidity_str}", fill=BLACK, font=font_text)
+        draw.text((right_x + 37, top_y + (3 * height_temp)+20), f" {outdoor_humidity_str}", fill=BLACK, font=font_text)
         
     def _get_forecast_data(self, current_outdoor_temp=None):
         """Extract weather forecast data from instant section for each hour.
