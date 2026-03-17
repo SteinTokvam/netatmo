@@ -4,6 +4,7 @@ import json
 import threading
 import netatmo
 import weather
+import ical_calendar
 import logging
 import os 
 import utils
@@ -12,6 +13,8 @@ logging.basicConfig()
 logging.root.setLevel(logging.INFO)
 
 serverLogger = logging.getLogger("server")
+
+g_config = dict()
 
 
 class WeatherHandler(http.server.SimpleHTTPRequestHandler):
@@ -67,23 +70,17 @@ class WeatherHandler(http.server.SimpleHTTPRequestHandler):
                 elif module["module_type"] == "NAModule2":
                     weather_data["netatmo"]["wind_strength"] = module["WindStrength"]
                     weather_data["netatmo"]["wind_angle"] = module["WindAngle"]
+        if os.path.isfile(ical_calendar.events_filename):
+            calendar_data = utils.read_json(ical_calendar.events_filename)
+            weather_data["events"] = calendar_data
 
     def do_GET(self):
-        if self.path == "/weather.json":
+        if self.path == "/data.json":
             self.read_and_process_files()
             self.send_response(200)
             self.send_header("Content-type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps(weather_data).encode('utf-8'))
-        elif self.path == "/image.bmp":
-            if os.path.exists("image.bmp"):
-                with open("image.bmp", "rb") as f:
-                    bmp_data = f.read()
-                self.send_response(200)
-                self.send_header("Content-type", "image/bmp")
-                self.send_header("Content-Length", str(len(bmp_data)))
-                self.end_headers()
-                self.wfile.write(bmp_data)
         else:
             self.send_response(404)
             self.end_headers()
@@ -91,8 +88,22 @@ class WeatherHandler(http.server.SimpleHTTPRequestHandler):
 def main():
     serverLogger.info("Starting server...")
 
+    config = {}
+    config_filename = "config/config.json"
+
+    # read config
+    if os.path.isfile(config_filename):
+        config = utils.read_json(config_filename)
+    else:
+        config = {'client_id': 'xxxx', 'client_secret': 'xxxx', 'device_id': 'xxxx'}
+        utils.write_json(config, config_filename)
+        serverLogger.error("main() error:")
+        serverLogger.error("Config file not found: creating an empty one.")
+        serverLogger.error("Please edit %s and try again.", config_filename)
+        return
+
     # Start netatmo service in background thread
-    netatmo_thread = threading.Thread(target=netatmo.startNetatmoService, daemon=True)
+    netatmo_thread = threading.Thread(target=netatmo.startNetatmoService, args=(config,), daemon=True)
     netatmo_thread.start()
     serverLogger.info("Netatmo service started.")
 
@@ -101,9 +112,14 @@ def main():
     weather_thread.start()
     serverLogger.info("Weather service started.")
 
+    # Start calendar data retrieval in background thread
+    calendar_thread = threading.Thread(target=ical_calendar.calendar_service, args=(config,), daemon=True)
+    calendar_thread.start()
+    serverLogger.info("Calendar service started.")
+
     # start web server
     PORT = 8000
-    serverLogger.info(f"Serving at http://0.0.0.0:{PORT}/image.bmp")
+    serverLogger.info(f"Serving at http://0.0.0.0:{PORT}/data.json")
     with socketserver.TCPServer(("", PORT), WeatherHandler) as httpd:
         httpd.serve_forever()
 

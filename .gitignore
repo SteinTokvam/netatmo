@@ -1,11 +1,10 @@
 config*.json
-data*.json
 token*.json
-weather*.json
 image*.bmp
 custom*
 
 .vscode/
 .DS_Store
+/data
 
 /__pycache__

@@ -17,12 +17,10 @@ import weather
 netatmoLogger = logging.getLogger(__name__)
 
 # JSON file names
-config_filename = "config/config.json"
 token_filename = "config/token.json"
 data_filename = "data/data.json"
 
 # Global variables
-g_config = dict()
 g_token = dict()
 g_data = dict()
 
@@ -52,15 +50,14 @@ def get_new_token():
     netatmoLogger.error('_______________________________________________________')
     sys.exit(1)
 
-def refresh_token():
+def refresh_token(config):
     """NetAtmo API token refresh. Result: g_token and token.json file."""
     global g_token
-    global g_config
     payload = {
         'grant_type': 'refresh_token',
         'refresh_token': g_token['refresh_token'],
-        'client_id': g_config['client_id'],
-        'client_secret': g_config['client_secret'],
+        'client_id': config['client_id'],
+        'client_secret': config['client_secret'],
     }
     try:
         response = requests.post("https://api.netatmo.com/oauth2/token", data=payload)
@@ -78,14 +75,13 @@ def refresh_token():
     except requests.exceptions.RequestException:
         netatmoLogger.error("refresh_token() RequestException", exc_info=1)
 
-def get_station_data():
+def get_station_data(config):
     """Gets Netatmo weather station data. Result: g_data and data.json file."""
     global g_token
-    global g_config
     global g_data
     params = {
         'access_token': g_token['access_token'],
-        'device_id': g_config['device_id']
+        'device_id': config['device_id']
     }
     try:
         response = requests.post("https://api.netatmo.com/api/getstationsdata", params=params)
@@ -98,10 +94,10 @@ def get_station_data():
         netatmoLogger.warning("%d %s", e.response.status_code, e.response.text)
         if e.response.status_code == 403:
             netatmoLogger.info("get_station_data() calling refresh_token()")
-            refresh_token()
+            refresh_token(config)
             # retry
             netatmoLogger.info("get_station_data() retrying")
-            get_station_data()
+            get_station_data(config)
     except requests.exceptions.RequestException:
         netatmoLogger.error("get_station_data() RequestException:", exc_info=1)
 
@@ -145,32 +141,19 @@ def display_console():
                         displaystr += " | " + module_name + " " + str(module["dashboard_data"]["Temperature"])
     netatmoLogger.info(displaystr)
 
-def updater_thread():
-    global g_token, g_config, g_data
+def updater_thread(config):
+    global g_token, g_data
     while True:
-        get_station_data()
-        weather.get_weather_data()
+        get_station_data(config)
         display_console()
 
         display.main()
         time.sleep(600)  # Sleep for 10 min
 
-def startNetatmoService():
+def startNetatmoService(config):
     """Main function"""
     global g_token
-    global g_config
     global g_data
-
-    # read config
-    if os.path.isfile(config_filename):
-        g_config = utils.read_json(config_filename)
-    else:
-        g_config = {'client_id': 'xxxx', 'client_secret': 'xxxx', 'device_id': 'xxxx'}
-        utils.write_json(g_config, config_filename)
-        netatmoLogger.error("main() error:")
-        netatmoLogger.error("Config file not found: creating an empty one.")
-        netatmoLogger.error("Please edit %s and try again.", config_filename)
-        return
 
     # read last token    
     if os.path.isfile(token_filename):
@@ -186,7 +169,4 @@ def startNetatmoService():
     if os.path.isfile(data_filename):
         g_data = utils.read_json(data_filename)
     
-    updater_thread()
-
-if __name__ == '__main__':
-    startNetatmoService()
+    updater_thread(config)
