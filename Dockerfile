@@ -16,6 +16,7 @@ COPY utils.py ./
 COPY weather.py ./
 COPY display.py ./
 COPY server.py ./
+COPY ical_calendar.py ./
 
 # copy font
 COPY free-sans.ttf ./
