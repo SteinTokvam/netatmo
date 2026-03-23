@@ -3,11 +3,11 @@ import requests
 import utils
 import logging
 import time
-import logging
 
 weatherLogger = logging.getLogger(__name__)
 
 weather_data_filename = "data/weather_data.json"
+REQUEST_TIMEOUT = (5, 30)
 
 def get_weather_data():
     """Gets weather data from met.no API. Result: weather_data.json file."""
@@ -20,7 +20,12 @@ def get_weather_data():
         'lon': '10.611503000000067'
     }
     try:
-        response = requests.get("https://api.met.no/weatherapi/locationforecast/2.0/complete", params=params, headers={"User-Agent": "netatmo-weather-app/1.0"})
+        response = requests.get(
+            "https://api.met.no/weatherapi/locationforecast/2.0/complete",
+            params=params,
+            headers={"User-Agent": "netatmo-weather-app/1.0"},
+            timeout=REQUEST_TIMEOUT,
+        )
         weatherLogger.debug("%d %s", response.status_code, response.text)
         response.raise_for_status()
         weather_data = response.json()

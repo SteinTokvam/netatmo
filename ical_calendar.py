@@ -5,11 +5,12 @@ from caldav import DAVClient
 from datetime import datetime, timedelta
 import pytz
 from icalendar import Calendar
-import json
 from datetime import datetime, date
+import utils
 
 calendarLogger = logging.getLogger(__name__)
 events_filename = "data/events.json"
+DEFAULT_CALDAV_TIMEOUT_SECONDS = 30
 
 
 def calendar_service(config):
@@ -30,6 +31,7 @@ def fetch_calendar_events(config):
         url=config["caldav_url"],
         username=config["apple_id"],
         password=config["apple_password"],
+        timeout=config.get("caldav_timeout_seconds", DEFAULT_CALDAV_TIMEOUT_SECONDS),
     )
 
     principal = client.principal()
@@ -37,7 +39,7 @@ def fetch_calendar_events(config):
 
     if not calendars:
         calendarLogger.error("Found no calendars.")
-        exit()
+        return
 
     now = datetime.now(pytz.utc)
     end = now + timedelta(days=7)
@@ -91,8 +93,7 @@ def fetch_calendar_events(config):
                 "events": events_list,
             })
             calendarLogger.info("Saved %d events from calendar: %s", len(events_list), calendar.name)
-
-            with open(events_filename, "w", encoding="utf-8") as f:
-                json.dump(output, f, indent=2, ensure_ascii=False)
         else:
             calendarLogger.info("No events found in calendar: %s", calendar.name)
+
+    utils.write_json(output, events_filename, ensure_ascii=False)

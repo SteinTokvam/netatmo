@@ -16,6 +16,9 @@ import weather
 
 netatmoLogger = logging.getLogger(__name__)
 
+REQUEST_TIMEOUT = (5, 30)
+UPDATE_INTERVAL_SECONDS = 600
+
 # JSON file names
 token_filename = "config/token.json"
 data_filename = "data/data.json"
@@ -60,46 +63,60 @@ def refresh_token(config):
         'client_secret': config['client_secret'],
     }
     try:
-        response = requests.post("https://api.netatmo.com/oauth2/token", data=payload)
+        response = requests.post(
+            "https://api.netatmo.com/oauth2/token",
+            data=payload,
+            timeout=REQUEST_TIMEOUT,
+        )
         netatmoLogger.debug("%d %s", response.status_code, response.text)
         response.raise_for_status()
         g_token = response.json()
         utils.write_json(g_token, token_filename)
         netatmoLogger.info("refresh_token() OK.")
+        return True
     except requests.exceptions.HTTPError as e:
         netatmoLogger.warning("refresh_token() HTTPError")
         netatmoLogger.warning("%d %s", e.response.status_code, e.response.text)
         netatmoLogger.warning("refresh_token() failed. Need a new access token.")
         get_new_token()
-        return
+        return False
     except requests.exceptions.RequestException:
         netatmoLogger.error("refresh_token() RequestException", exc_info=1)
+        return False
 
 def get_station_data(config):
     """Gets Netatmo weather station data. Result: g_data and data.json file."""
     global g_token
     global g_data
-    params = {
-        'access_token': g_token['access_token'],
-        'device_id': config['device_id']
-    }
-    try:
-        response = requests.post("https://api.netatmo.com/api/getstationsdata", params=params)
-        netatmoLogger.debug("%d %s", response.status_code, response.text)
-        response.raise_for_status()
-        g_data = response.json()
-        utils.write_json(g_data, data_filename)    
-    except requests.exceptions.HTTPError as e:
-        netatmoLogger.warning("get_station_data() HTTPError")
-        netatmoLogger.warning("%d %s", e.response.status_code, e.response.text)
-        if e.response.status_code == 403:
-            netatmoLogger.info("get_station_data() calling refresh_token()")
-            refresh_token(config)
-            # retry
-            netatmoLogger.info("get_station_data() retrying")
-            get_station_data(config)
-    except requests.exceptions.RequestException:
-        netatmoLogger.error("get_station_data() RequestException:", exc_info=1)
+    for attempt in range(2):
+        params = {
+            'access_token': g_token['access_token'],
+            'device_id': config['device_id']
+        }
+        try:
+            response = requests.post(
+                "https://api.netatmo.com/api/getstationsdata",
+                params=params,
+                timeout=REQUEST_TIMEOUT,
+            )
+            netatmoLogger.debug("%d %s", response.status_code, response.text)
+            response.raise_for_status()
+            g_data = response.json()
+            utils.write_json(g_data, data_filename)
+            return True
+        except requests.exceptions.HTTPError as e:
+            netatmoLogger.warning("get_station_data() HTTPError")
+            netatmoLogger.warning("%d %s", e.response.status_code, e.response.text)
+            if e.response.status_code == 403 and attempt == 0:
+                netatmoLogger.info("get_station_data() calling refresh_token()")
+                if refresh_token(config):
+                    netatmoLogger.info("get_station_data() retrying")
+                    continue
+            return False
+        except requests.exceptions.RequestException:
+            netatmoLogger.error("get_station_data() RequestException:", exc_info=1)
+            return False
+    return False
 
 def display_console():
     """Displays weather data on the console. Input: g_data"""
@@ -144,11 +161,19 @@ def display_console():
 def updater_thread(config):
     global g_token, g_data
     while True:
-        get_station_data(config)
-        display_console()
+        cycle_started = time.monotonic()
+        try:
+            if get_station_data(config):
+                display_console()
+                try:
+                    display.main()
+                except Exception:
+                    netatmoLogger.error("display.main() failed", exc_info=1)
+        except Exception:
+            netatmoLogger.error("updater_thread() unexpected failure", exc_info=1)
 
-        display.main()
-        time.sleep(600)  # Sleep for 10 min
+        elapsed = time.monotonic() - cycle_started
+        time.sleep(max(0, UPDATE_INTERVAL_SECONDS - elapsed))
 
 def startNetatmoService(config):
     """Main function"""
